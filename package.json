@@ -12,8 +12,9 @@
   "react-dom": "latest",
   "@solana/web3.js": "^1.88.2",
   "@solana/wallet-adapter-react": "^0.15.18",
-  "@solana/wallet-adapter-react-ui": "^0.15.18",
+  "@solana/wallet-adapter-react-ui": "^0.9.16",
   "@solana/wallet-adapter-wallets": "^0.15.18",
   "@solana/wallet-adapter-base": "^0.9.24"
 }
+
 }
