@@ -1,1 +1,0 @@
-// Wallet Connect Component
