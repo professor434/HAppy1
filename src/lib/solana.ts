@@ -189,7 +189,9 @@ export async function executeClaimFeePayment(
 
   return signature;
 }
-export function formatPublicKey(key: string) {
+export function formatPublicKey(key: string | PublicKey) {
   if (!key) return '';
-  return `${key.slice(0, 6)}...${key.slice(-6)}`;
+  // Αν είναι PublicKey object, κάνε το σε string
+  const str = typeof key === "string" ? key : key.toBase58();
+  return `${str.slice(0, 6)}...${str.slice(-6)}`;
 }
