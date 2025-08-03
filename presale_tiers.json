@@ -3,19 +3,19 @@
     "tier": 1,
     "price_usdc": 0.00023,
     "max_tokens": 50000000,
-    "duration_days": 14
+    "duration_days": null
   },
   {
     "tier": 2,
     "price_usdc": 0.00029,
     "max_tokens": 150000000,
-    "duration_days": 14
+    "duration_days": null
   },
   {
     "tier": 3,
     "price_usdc": 0.00038,
     "max_tokens": 200000000,
-    "duration_days": 21
+    "duration_days": null
   },
   {
     "tier": 4,
@@ -43,7 +43,7 @@
   },
   {
     "tier": 8,
-    "price_usdc": 0.001,
+    "price_usdc": 0.000938,
     "max_tokens": 50000000,
     "duration_days": 30
   }
