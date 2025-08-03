@@ -1,0 +1,596 @@
+import { useState, useEffect } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
+import { 
+  executeSOLPayment, 
+  executeUSDCPayment, 
+  executeClaimFeePayment,
+  formatPublicKey, 
+  SPL_MINT_ADDRESS, 
+  FEE_WALLET,
+  USDC_MINT_ADDRESS
+} from '@/lib/solana';
+import { CustomWalletButton } from '@/components/CustomWalletButton';
+import { recordPurchase, canClaimTokens, recordClaim, getCurrentTier, getPresaleStatus } from '@/lib/api';
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+
+// Presale tiers configuration
+const PRESALE_TIERS = [
+  { tier: 1, price_usdc: 0.00023, limit: 50000000, duration_days: null },
+  { tier: 2, price_usdc: 0.00029, limit: 150000000, duration_days: null },
+  { tier: 3, price_usdc: 0.00038, limit: 200000000, duration_days: null },
+  { tier: 4, price_usdc: 0.00045, limit: 200000000, duration_days: 30 },
+  { tier: 5, price_usdc: 0.00052, limit: 150000000, duration_days: 30 },
+  { tier: 6, price_usdc: 0.00061, limit: 150000000, duration_days: 30 },
+  { tier: 7, price_usdc: 0.00075, limit: 100000000, duration_days: 30 },
+  { tier: 8, price_usdc: 0.001, limit: 50000000, duration_days: 30 },
+];
+
+// Total presale goal in USDC
+const PRESALE_GOAL_USDC = 1100000000;
+
+// SOL to USDC conversion rate (approximate)
+const SOL_TO_USDC_RATE = 170;
+
+// Presale end date (should be far in the future, not ended yet)
+const PRESALE_END_DATE = new Date('2025-12-31');
+
+export default function PresalePage() {
+  const { toast: uiToast } = useToast();
+  const { publicKey, connected, signTransaction } = useWallet();
+  const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]); // Start from tier 1
+  const [totalRaised, setTotalRaised] = useState(0);
+  const [amount, setAmount] = useState("");
+  const [paymentToken, setPaymentToken] = useState("SOL");
+  const [countdownTime, setCountdownTime] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const [presaleEnded, setPresaleEnded] = useState(false);
+  const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean, total?: string }>(null);
+  const [isClaimPending, setIsClaimPending] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
+  // Calculate percentage raised
+  const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
+  
+  // Get claim status when wallet is connected
+  useEffect(() => {
+    if (connected && publicKey) {
+      checkClaimStatus();
+    } else {
+      setClaimableTokens(null);
+    }
+  }, [connected, publicKey]);
+
+  // Get presale status and tier information
+  useEffect(() => {
+    fetchPresaleStatus();
+  }, []);
+
+  // Check if presale has ended
+  useEffect(() => {
+    // Force presale to be active regardless of date
+    setPresaleEnded(false);
+    
+    // We don't need to set a countdown here as it's handled by the tier-specific useEffect below
+  }, []);
+  
+  // Calculate current tier end date (if applicable)
+  useEffect(() => {
+    // For tiers 1-3, no countdown is needed
+    if (currentTier.tier <= 3) {
+      setCountdownTime("No time limit - Complete sale to advance");
+      return;
+    }
+    
+    // For tiers 4-8, show the countdown timer
+    // Mock tier start date
+    const tierStartDate = new Date('2025-08-01');
+    const tierEndDate = new Date(tierStartDate);
+    
+    // Use the tier's duration_days or default to 30 days if not specified
+    const duration = currentTier.duration_days || 30;
+    tierEndDate.setDate(tierEndDate.getDate() + duration);
+    
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = tierEndDate.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setCountdownTime("Tier ended");
+        return;
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setCountdownTime(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    
+    return () => clearInterval(interval);
+  }, [currentTier]);
+  
+  // Update current tier based on total raised
+  useEffect(() => {
+    let raisedSoFar = 0;
+    for (const tier of PRESALE_TIERS) {
+      if (raisedSoFar + tier.limit > totalRaised) {
+        setCurrentTier(tier);
+        break;
+      }
+      raisedSoFar += tier.limit;
+    }
+  }, [totalRaised]);
+
+  // Fetch presale status from backend
+  const fetchPresaleStatus = async () => {
+    try {
+      setIsCheckingStatus(true);
+      
+      // Fetch current tier info
+      const tierInfo = await getCurrentTier();
+      if (tierInfo) {
+        setCurrentTier(tierInfo);
+      }
+      
+      // Fetch overall presale status
+      const status = await getPresaleStatus();
+      if (status) {
+        setTotalRaised(status.raised);
+      }
+    } catch (error) {
+      console.error("Error fetching presale status:", error);
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  // Check if the connected wallet can claim tokens
+  const checkClaimStatus = async () => {
+    if (publicKey && connected) {
+      try {
+        setIsCheckingStatus(true);
+        const claimInfo = await canClaimTokens(publicKey.toString());
+        setClaimableTokens(claimInfo);
+      } catch (error) {
+        console.error("Error checking claim status:", error);
+        toast.error("Failed to check claim status");
+        setClaimableTokens(null);
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    }
+  };
+
+  // Buy tokens function
+  const buyTokens = async () => {
+    // Add visible toast notification for debugging
+    toast.info("Starting purchase process...");
+    console.log("🚀 Starting buyTokens function");
+    
+    if (!connected) {
+      console.error("Wallet not connected");
+      toast.error("Wallet not connected");
+      uiToast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!amount || parseFloat(amount) <= 0) {
+      console.error("Invalid amount:", amount);
+      toast.error("Invalid amount");
+      uiToast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount of tokens to buy.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log("✅ Basic validation passed");
+    toast.info("Processing payment...");
+    setIsPending(true);
+    
+    try {
+      console.log("🔍 Wallet connection details:", {
+        isConnected: connected,
+        publicKeyExists: !!publicKey,
+        publicKey: publicKey?.toString(),
+        signTransactionExists: !!signTransaction
+      });
+      
+      const penisAmount = parseFloat(amount);
+      // Convert from PENIS tokens to USDC value
+      // Note: price_usdc is already the price per 1 PENIS token
+      const totalPrice = penisAmount * currentTier.price_usdc;
+      console.log(`💰 Total price in USDC: ${totalPrice} for ${penisAmount} PENIS tokens`);
+      toast.info(`Processing ${penisAmount} tokens at ${currentTier.price_usdc} USDC each`);
+      
+      let txSignature = null;
+      
+      // Execute real on-chain transaction
+      if (paymentToken === "SOL" && publicKey && signTransaction) {
+        // Convert the price from USDC to SOL
+        const solPrice = totalPrice / SOL_TO_USDC_RATE;
+        
+        console.log(`💸 Attempting SOL payment of ${solPrice} SOL`);
+        toast.info(`Preparing SOL payment: ${solPrice} SOL`);
+        
+        console.log("Receiver address:", SPL_MINT_ADDRESS.toString());
+        console.log("Fee wallet address:", FEE_WALLET.toString());
+        
+        try {
+          // Execute real SOL payment
+          txSignature = await executeSOLPayment(solPrice, { publicKey, signTransaction });
+          console.log("✅ SOL payment execution completed");
+        } catch (paymentError) {
+          console.error("❌ SOL payment execution failed:", paymentError);
+          toast.error(`Payment failed: ${paymentError instanceof Error ? paymentError.message : "Unknown error"}`);
+          throw paymentError;
+        }
+        
+      } else if (paymentToken === "USDC" && publicKey && signTransaction) {
+        console.log(`💸 Attempting USDC payment of ${totalPrice} USDC`);
+        toast.info(`Preparing USDC payment: ${totalPrice} USDC`);
+        
+        try {
+          // Execute real USDC payment
+          txSignature = await executeUSDCPayment(totalPrice, { publicKey, signTransaction });
+          console.log("✅ USDC payment execution completed");
+        } catch (paymentError) {
+          console.error("❌ USDC payment execution failed:", paymentError);
+          toast.error(`Payment failed: ${paymentError instanceof Error ? paymentError.message : "Unknown error"}`);
+          throw paymentError;
+        }
+      } else {
+        const errorMsg = "Invalid payment method or wallet not properly connected";
+        console.error("❌", errorMsg);
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      if (!txSignature) {
+        const errorMsg = "Transaction completed but no signature returned";
+        console.error("❌", errorMsg);
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      // Store the txSignature in a variable that will be accessible outside this code block
+      window.lastTransactionSignature = txSignature;
+      
+      console.log("✅ Transaction successful:", txSignature);
+      toast.success("Transaction sent successfully!");
+      
+      try {
+        // Record the purchase in the backend
+        console.log("📝 Recording purchase in backend...");
+        await recordPurchase(
+          publicKey.toString(),
+          penisAmount,
+          paymentToken,
+          txSignature
+        );
+        console.log("✅ Purchase recorded in backend");
+      } catch (backendError) {
+        console.error("⚠️ Backend recording failed but transaction was successful:", backendError);
+        toast.warning("Transaction successful but failed to record in our system. Please contact support with your transaction ID.");
+        // Don't throw here as the transaction was successful
+      }
+      
+      // Update the total raised (in a real implementation, this would come from the chain)
+      setTotalRaised(prev => prev + penisAmount);
+      
+      // Clear input field
+      setAmount("");
+      
+      // Check if the user can now claim tokens
+      checkClaimStatus();
+      
+      toast.success("Purchase completed successfully!");
+      uiToast({
+        title: "Purchase Successful!",
+        description: `You bought ${penisAmount.toLocaleString()} PENIS tokens for ${
+          paymentToken === "SOL" 
+            ? `${(totalPrice / SOL_TO_USDC_RATE).toFixed(6)} SOL` 
+            : `${totalPrice.toFixed(6)} USDC`
+        } (Transaction: ${txSignature.slice(0, 8)}...)`,
+      });
+    } catch (error) {
+      console.error("❌ Transaction error:", error);
+      toast.error("Transaction failed");
+      uiToast({
+        title: "Transaction Failed",
+        description: error instanceof Error ? error.message : "Could not complete the purchase. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      console.log("🏁 Purchase process completed");
+      setIsPending(false);
+    }
+  };
+
+  // Claim tokens function
+  const claimTokens = async () => {
+    if (!connected || !publicKey || !claimableTokens?.canClaim || !claimableTokens.total) {
+      return;
+    }
+
+    setIsClaimPending(true);
+    
+    try {
+      const tokenAmount = parseFloat(claimableTokens.total);
+      
+      // Execute claim fee payment transaction
+      const txSignature = await executeClaimFeePayment(tokenAmount, { publicKey, signTransaction });
+      
+      if (!txSignature) {
+        throw new Error("Claim fee payment failed");
+      }
+      
+      console.log("Claim fee payment successful:", txSignature);
+      
+      // Record the claim in the backend
+      const success = await recordClaim(publicKey.toString(), txSignature);
+      
+      if (success) {
+        uiToast({
+          title: "Claim Successful!",
+          description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens`,
+        });
+        
+        // Update claim status
+        setClaimableTokens({...claimableTokens, canClaim: false});
+      } else {
+        throw new Error("Failed to record claim on server");
+      }
+    } catch (error) {
+      console.error("Claim error:", error);
+      uiToast({
+        title: "Claim Failed",
+        description: error instanceof Error ? error.message : "Could not complete the claim. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClaimPending(false);
+    }
+  };
+
+  return (
+    <div 
+      className="flex flex-col min-h-screen text-white"
+      style={{
+        backgroundColor: '#131313',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      <div className="fixed bottom-4 right-4 flex gap-2">
+        <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white">SOL</div>
+        <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center text-white">EX</div>
+        <div className="h-10 w-10 rounded-full bg-blue-400 flex items-center justify-center text-white">TW</div>
+        <div className="h-10 w-10 rounded-full bg-sky-500 flex items-center justify-center text-white">TG</div>
+      </div>
+      {/* Header */}
+      <header className="w-full px-4 py-6 flex justify-between items-center bg-black/50 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-full bg-pink-500 flex items-center justify-center text-white font-bold">HP</div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+            Happy Penis Presale
+          </h1>
+        </div>
+        <CustomWalletButton />
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-grow flex items-center justify-center p-4">
+        <Card className="w-full max-w-xl bg-gray-900/80 border-pink-500/30 backdrop-blur">
+          <CardHeader>
+            <div className="flex justify-center mb-2">
+              <div className="h-20 w-20 rounded-full bg-pink-500 flex items-center justify-center text-white text-2xl font-bold">HP</div>
+            </div>
+            <CardTitle className="text-2xl text-center">
+              Happy Penis Token Presale
+            </CardTitle>
+            <CardDescription className="text-center text-gray-300">
+              Current Price: 1 PENIS = {currentTier.price_usdc} USDC
+            </CardDescription>
+            {presaleEnded && (
+              <Badge variant="secondary" className="mx-auto mt-2 bg-pink-500 text-white">
+                Presale Ended - Claim Your Tokens
+              </Badge>
+            )}
+            {!presaleEnded && countdownTime && (
+              <div className="text-center mt-2">
+                <p className="text-xs text-gray-400">Presale ends in:</p>
+                <p className="font-mono text-sm">{countdownTime}</p>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Wallet Info Section */}
+            <div className="bg-gray-800/70 p-3 rounded-md text-xs">
+              <div className="mb-2 font-medium text-pink-300">Project Details:</div>
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <span className="text-gray-400">SPL Address: </span>
+                  <span className="font-mono">{formatPublicKey(SPL_MINT_ADDRESS)}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Progress</span>
+                <span>{Math.min(100, raisedPercentage).toFixed(2)}%</span>
+              </div>
+              <Progress value={Math.min(100, raisedPercentage)} className="h-2" />
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>{totalRaised.toLocaleString()} PENIS</span>
+                <span>{PRESALE_GOAL_USDC.toLocaleString()} PENIS</span>
+              </div>
+            </div>
+            
+            {/* Tier Information */}
+            <div className="bg-gray-800/70 p-3 rounded-md">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="font-medium">Current Tier: {currentTier.tier}</h3>
+                  <p className="text-sm text-gray-400">Price: {currentTier.price_usdc} USDC</p>
+                </div>
+                {!presaleEnded && countdownTime && (
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Tier ends in:</p>
+                    <p className="font-mono">{countdownTime}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Claim Section (visible after presale ends or when tokens are claimable) */}
+            {(presaleEnded || (connected && claimableTokens?.canClaim)) && (
+              <div className="bg-pink-500/20 p-4 rounded-md border border-pink-500">
+                <h3 className="font-medium text-center mb-2">
+                  {isCheckingStatus ? "Checking claim status..." : "Token Claim"}
+                </h3>
+                {connected ? (
+                  <>
+                    {isCheckingStatus ? (
+                      <div className="flex justify-center py-2">
+                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-pink-500"></div>
+                      </div>
+                    ) : claimableTokens?.canClaim ? (
+                      <>
+                        <p className="text-sm text-center mb-3">
+                          You can claim <span className="font-bold">{parseInt(claimableTokens.total || "0").toLocaleString()}</span> PENIS tokens
+                        </p>
+                        <Button 
+                          onClick={claimTokens}
+                          disabled={isClaimPending}
+                          className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                        >
+                          {isClaimPending ? "Processing..." : "Claim Tokens"}
+                        </Button>
+                        <p className="text-xs text-center mt-2 text-gray-300">
+                          A small fee will be charged to process your claim
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-center">
+                        {claimableTokens === null 
+                          ? "Connect wallet to check claim status"
+                          : "You don't have any tokens to claim"}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-center">
+                    Connect your wallet to check if you can claim tokens
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Purchase Form - Only show if presale hasn't ended */}
+            {!presaleEnded && (
+              <div className="space-y-4">
+                <Tabs defaultValue="buy" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="buy">Buy Tokens</TabsTrigger>
+                    <TabsTrigger value="tiers">Tier Info</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="buy" className="space-y-4 pt-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="amount">Amount of PENIS tokens</Label>
+                      <Input
+                        id="amount"
+                        placeholder="Enter amount"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        type="number"
+                        min="1"
+                        className="bg-gray-800/50"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="token">Payment Token</Label>
+                      <Select 
+                        value={paymentToken} 
+                        onValueChange={setPaymentToken}
+                      >
+                        <SelectTrigger className="bg-gray-800/50">
+                          <SelectValue placeholder="Select token" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USDC">USDC</SelectItem>
+                          <SelectItem value="SOL">SOL</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button 
+                      onClick={buyTokens} 
+                      disabled={!connected || isPending || !amount}
+                      className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                    >
+                      {isPending ? "Processing..." : "Buy Now"}
+                    </Button>
+                    {!connected && (
+                      <p className="text-center text-sm text-gray-400">
+                        Connect your wallet to buy tokens
+                      </p>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="tiers" className="pt-4">
+                    <div className="space-y-2">
+                      {PRESALE_TIERS.map((tier) => (
+                        <div 
+                          key={tier.tier} 
+                          className={`p-3 rounded-md border ${currentTier.tier === tier.tier ? 'bg-pink-500/20 border-pink-500' : 'bg-gray-800/50 border-gray-700'}`}
+                        >
+                          <div className="flex justify-between">
+                            <h4 className="font-medium">Tier {tier.tier}</h4>
+                            <span>{tier.price_usdc} USDC</span>
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            <span>Limit: {tier.limit.toLocaleString()} PENIS</span>
+                            {tier.duration_days && (
+                              <span className="ml-2">Duration: {tier.duration_days} days</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+
+      {/* Footer */}
+      <footer className="py-4 text-center text-sm text-white bg-black/70">
+        © 2025 Happy Penis Token. All rights reserved.
+      </footer>
+    </div>
+  );
+}
