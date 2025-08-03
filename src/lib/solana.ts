@@ -24,7 +24,7 @@ export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVu
 export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
 
 // Export RPC URL for Solana connection - using devnet for testing
-export const SOLANA_RPC_URL = clusterApiUrl('devnet');
+export const SOLANA_RPC_URL = clusterApiUrl('mainnet');
 
 // Fee settings
 export const BUY_FEE_PERCENTAGE = 0.1; // 0.1% fee on buy
