@@ -483,24 +483,30 @@ export default function PresalePage() {
               </div>
             </div>
 
-            {/* Claim Section (visible after presale ends or when tokens are claimable) */}
-            {(presaleEnded || (connected && claimableTokens?.canClaim)) && (
+            {/* Claim Section (visible when wallet is connected) */}
+            {connected && (
               <div className="bg-pink-500/20 p-4 rounded-md border border-pink-500">
                 <h3 className="font-medium text-center mb-2">
                   {isCheckingStatus ? "Checking claim status..." : "Token Claim"}
                 </h3>
-                {connected ? (
+                {isCheckingStatus ? (
+                  <div className="flex justify-center py-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-pink-500"></div>
+                  </div>
+                ) : claimableTokens === null ? (
+                  <p className="text-sm text-center">
+                    Unable to check claim status
+                  </p>
+                ) : (
                   <>
-                    {isCheckingStatus ? (
-                      <div className="flex justify-center py-2">
-                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-pink-500"></div>
-                      </div>
-                    ) : claimableTokens?.canClaim ? (
+                    {claimableTokens.total !== undefined && (
+                      <p className="text-sm text-center mb-3">
+                        You can claim <span className="font-bold">{parseInt(claimableTokens.total, 10).toLocaleString()}</span> PENIS tokens
+                      </p>
+                    )}
+                    {presaleEnded && claimableTokens.canClaim ? (
                       <>
-                        <p className="text-sm text-center mb-3">
-                          You can claim <span className="font-bold">{parseInt(claimableTokens.total || "0").toLocaleString()}</span> PENIS tokens
-                        </p>
-                        <Button 
+                        <Button
                           onClick={claimTokens}
                           disabled={isClaimPending}
                           className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
@@ -512,17 +518,9 @@ export default function PresalePage() {
                         </p>
                       </>
                     ) : (
-                      <p className="text-sm text-center">
-                        {claimableTokens === null 
-                          ? "Connect wallet to check claim status"
-                          : "You don't have any tokens to claim"}
-                      </p>
+                      <p className="text-sm text-center">Claims open after the presale.</p>
                     )}
                   </>
-                ) : (
-                  <p className="text-sm text-center">
-                    Connect your wallet to check if you can claim tokens
-                  </p>
                 )}
               </div>
             )}
