@@ -10,8 +10,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const SPL_MINT_ADDRESS = "7TaNrHwaG4ii4F7R6vsfyaZxxTPQ5TKNhUWzmjs8EJRp"; 
-const FEE_WALLET = "7ZZLAAdhz1GqL7Ug3CF4pGbUZ3tMLamQ2WrNNYAXkbdw";
+const SPL_MINT_ADDRESS = "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD"; 
+const FEE_WALLET = "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 
 // Initialize data store - in a real app, this would be a database
 let purchases = [];
