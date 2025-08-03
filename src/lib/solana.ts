@@ -21,7 +21,7 @@ import bs58 from 'bs58';
 // Define constants - Updated with the correct addresses
 export const SPL_MINT_ADDRESS = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD');
 export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn');
-export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+export const USDC_MINT_ADDRESS = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD');
 
 // Export RPC URL for Solana connection - using devnet for testing
 export const SOLANA_RPC_URL = clusterApiUrl('mainnet');
