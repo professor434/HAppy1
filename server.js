@@ -13,8 +13,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const SPL_MINT_ADDRESS = process.env.SPL_MINT_ADDRESS || "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
-const FEE_WALLET = process.env.FEE_WALLET || "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
+const SPL_MINT_ADDRESS = new PublicKey('GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'); // μόνο για τον SPL Token!
+const TREASURY_WALLET = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD'); // τα χρήματα πάνε εδώ
+const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn');
+
 
 // CORS for production + localhost
 app.use(cors({
