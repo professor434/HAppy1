@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 
 // Base URL for API - would come from environment in production
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'https://happy-penis-api.up.railway.app';
 
 // Define interfaces for API responses
 interface PurchaseRecord {
