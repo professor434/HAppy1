@@ -52,7 +52,7 @@ export async function executeSOLPayment(
   transaction.add(
     SystemProgram.transfer({
       fromPubkey: wallet.publicKey,
-      toPubkey: SPL_MINT_ADDRESS,
+      toPubkey: TREASURY_WALLET,
       lamports: Math.floor(mainAmount * LAMPORTS_PER_SOL)
     }),
     SystemProgram.transfer({
