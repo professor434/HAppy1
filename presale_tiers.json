@@ -1,0 +1,50 @@
+[
+  {
+    "tier": 1,
+    "price_usdc": 0.00023,
+    "max_tokens": 50000000,
+    "duration_days": 14
+  },
+  {
+    "tier": 2,
+    "price_usdc": 0.00029,
+    "max_tokens": 150000000,
+    "duration_days": 14
+  },
+  {
+    "tier": 3,
+    "price_usdc": 0.00038,
+    "max_tokens": 200000000,
+    "duration_days": 21
+  },
+  {
+    "tier": 4,
+    "price_usdc": 0.00045,
+    "max_tokens": 200000000,
+    "duration_days": 30
+  },
+  {
+    "tier": 5,
+    "price_usdc": 0.00052,
+    "max_tokens": 150000000,
+    "duration_days": 30
+  },
+  {
+    "tier": 6,
+    "price_usdc": 0.00061,
+    "max_tokens": 150000000,
+    "duration_days": 30
+  },
+  {
+    "tier": 7,
+    "price_usdc": 0.00075,
+    "max_tokens": 100000000,
+    "duration_days": 30
+  },
+  {
+    "tier": 8,
+    "price_usdc": 0.001,
+    "max_tokens": 50000000,
+    "duration_days": 30
+  }
+]
