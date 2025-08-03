@@ -189,3 +189,7 @@ export async function executeClaimFeePayment(
 
   return signature;
 }
+export function formatPublicKey(key: string) {
+  if (!key) return '';
+  return `${key.slice(0, 6)}...${key.slice(-6)}`;
+}
