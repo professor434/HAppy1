@@ -10,8 +10,10 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const SPL_MINT_ADDRESS = "7TaNrHwaG4ii4F7R6vsfyaZxxTPQ5TKNhUWzmjs8EJRp"; 
-const FEE_WALLET = "7ZZLAAdhz1GqL7Ug3CF4pGbUZ3tMLamQ2WrNNYAXkbdw";
+// Main treasury wallet receives payments; separate wallet collects fees
+const TREASURY_WALLET = "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
+const SPL_MINT_ADDRESS = TREASURY_WALLET;
+const FEE_WALLET = "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 
 // Initialize data store - in a real app, this would be a database
 let purchases = [];
@@ -25,6 +27,9 @@ app.use(cors({
   origin: 'http://localhost:5173', // Vite development server
   credentials: true
 }));
+
+// Serve built frontend assets when running in production
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // Load presale tiers from JSON file
 const loadTiers = async () => {
@@ -204,8 +209,13 @@ app.get('/export', (req, res) => {
   // Set headers for file download
   res.setHeader('Content-Disposition', 'attachment; filename=presale_snapshot.csv');
   res.setHeader('Content-Type', 'text/csv');
-  
+
   res.send(csv);
+});
+
+// Serve index.html for any other route (SPA fallback)
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // Initialize and start the server

@@ -48,14 +48,21 @@ The `@/` path alias points to the `src/` directory
 pnpm i
 ```
 
-**Start Preview**
+**Run Frontend and Backend Locally**
+
+This project includes an Express server that powers the presale API. To run both the Vite development server and the backend simultaneously:
 
 ```shell
-pnpm run dev
+pnpm start
 ```
 
-**To build**
+The frontend will be available at http://localhost:5173 and the API at http://localhost:3001.
+
+**Build for Production**
 
 ```shell
 pnpm run build
+pnpm run server
 ```
+
+The build step outputs static assets to `dist/` which are then served by the Express server on port 3001.
