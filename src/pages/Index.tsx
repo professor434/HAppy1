@@ -25,7 +25,6 @@ import { Spinner } from "@/components/ui/spinner";
 
 // Presale tiers configuration
 const PRESALE_TIERS = [
-const PRESALE_TIERS = [
   { tier: 1, price_usdc: 0.000260, limit: 237500000, duration_days: null },
   { tier: 2, price_usdc: 0.000312, limit: 237500000, duration_days: null },
   { tier: 3, price_usdc: 0.000374, limit: 237500000, duration_days: null },
