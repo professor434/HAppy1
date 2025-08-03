@@ -483,7 +483,7 @@ export default function PresalePage() {
               </div>
             </div>
 
-            {/* Claim Section (visible when wallet is connected) */}
+            {/* Claim Section (visible when a wallet is connected) */}
             {connected && (
               <div className="bg-pink-500/20 p-4 rounded-md border border-pink-500">
                 <h3 className="font-medium text-center mb-2">
