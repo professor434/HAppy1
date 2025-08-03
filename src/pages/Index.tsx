@@ -25,14 +25,14 @@ import { Spinner } from "@/components/ui/spinner";
 
 // Presale tiers configuration
 const PRESALE_TIERS = [
-  { tier: 1, price_usdc: 0.00023, limit: 50000000, duration_days: null },
-  { tier: 2, price_usdc: 0.00029, limit: 150000000, duration_days: null },
-  { tier: 3, price_usdc: 0.00038, limit: 200000000, duration_days: null },
-  { tier: 4, price_usdc: 0.00045, limit: 200000000, duration_days: 30 },
-  { tier: 5, price_usdc: 0.00052, limit: 150000000, duration_days: 30 },
-  { tier: 6, price_usdc: 0.00061, limit: 150000000, duration_days: 30 },
-  { tier: 7, price_usdc: 0.00075, limit: 100000000, duration_days: 30 },
-  { tier: 8, price_usdc: 0.001, limit: 50000000, duration_days: 30 },
+{ tier: 1, price_usdc: 0.000260, limit: 50000000, duration_days: null },
+  { tier: 2, price_usdc: 0.000312, limit: 150000000, duration_days: null },
+  { tier: 3, price_usdc: 0.000374, limit: 200000000, duration_days: null },
+  { tier: 4, price_usdc: 0.000449, limit: 200000000, duration_days: 30 },
+  { tier: 5, price_usdc: 0.000539, limit: 150000000, duration_days: 30 },
+  { tier: 6, price_usdc: 0.000647, limit: 150000000, duration_days: 30 },
+  { tier: 7, price_usdc: 0.000776, limit: 100000000, duration_days: 30 },
+  { tier: 8, price_usdc: 0.000931, limit: 50000000, duration_days: 30 },
 ];
 
 // Total presale goal in USDC
