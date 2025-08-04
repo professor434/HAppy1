@@ -603,10 +603,13 @@ export default function PresalePage() {
         </Card>
       </main>
 
-      {/* Footer */}
-      <footer className="py-4 text-center text-sm text-white bg-black/70">
-        © 2025 Happy Penis Token. All rights reserved.
-      </footer>
-    </div>
-  );
-}
+ {/* Footer */}
+<footer className="py-4 text-center text-sm text-white bg-black/70">
+  {/* διακοσμητική εικόνα στο footer */}
+  <img
+    src="/assets/images/bag1.jpg"
+    alt="Bag"
+    className="mx-auto mb-2 h-12"
+  />
+  © 2025 Happy Penis Token. All rights reserved.
+</footer>
