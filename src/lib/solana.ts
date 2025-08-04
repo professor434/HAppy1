@@ -20,7 +20,6 @@ export const TREASURY_WALLET = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3
 export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'); // Για fees
 export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // Official USDC mint
 
-
 // ✅ RPC με extrnode
 export const SOLANA_RPC_URL = 'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
 export const connection = new Connection(SOLANA_RPC_URL);
@@ -37,15 +36,19 @@ export async function executeSOLPayment(
   amount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) throw new Error('Wallet not properly connected');
+  if (!wallet.publicKey || !wallet.signTransaction) {
+    throw new Error('Wallet not properly connected');
+  }
 
   const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
   const mainAmount = amount - feeAmount;
-  const lamportsToSend = Math.floor(mainAmount * LAMPORTS_PER_SOL) + Math.floor(feeAmount * LAMPORTS_PER_SOL);
-  const balance = await connection.getBalance(wallet.publicKey);
+  const lamportsToSend =
+    Math.floor(mainAmount * LAMPORTS_PER_SOL) +
+    Math.floor(feeAmount * LAMPORTS_PER_SOL);
 
+  const balance = await connection.getBalance(wallet.publicKey);
   if (balance < lamportsToSend + 5000) {
-    throw new Error("Insufficient SOL balance.");
+    throw new Error('Insufficient SOL balance.');
   }
 
   const transaction = new Transaction();
@@ -53,12 +56,12 @@ export async function executeSOLPayment(
     SystemProgram.transfer({
       fromPubkey: wallet.publicKey,
       toPubkey: TREASURY_WALLET,
-      lamports: Math.floor(mainAmount * LAMPORTS_PER_SOL)
+      lamports: Math.floor(mainAmount * LAMPORTS_PER_SOL),
     }),
     SystemProgram.transfer({
       fromPubkey: wallet.publicKey,
       toPubkey: FEE_WALLET,
-      lamports: Math.floor(feeAmount * LAMPORTS_PER_SOL)
+      lamports: Math.floor(feeAmount * LAMPORTS_PER_SOL),
     })
   );
 
@@ -67,13 +70,16 @@ export async function executeSOLPayment(
   transaction.recentBlockhash = latestBlockhash.blockhash;
 
   const signed = await wallet.signTransaction(transaction);
- const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  const signature = await connection.sendRawTransaction(signed.serialize());
 
-const confirmation = await connection.confirmTransaction(
-  { signature, blockhash: latestBlockhash.blockhash, lastValidBlockHeight: latestBlockhash.lastValidBlockHeight },
-  'confirmed'   // ίδιο commitment με getLatestBlockhash
-);
-
+  const confirmation = await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latestBlockhash.blockhash,
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+    },
+    'confirmed'
+  );
 
   if (confirmation.value.err) {
     throw new Error(`Transaction failed: ${confirmation.value.err}`);
@@ -87,14 +93,16 @@ export async function executeUSDCPayment(
   amount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) throw new Error('Wallet not properly connected');
+  if (!wallet.publicKey || !wallet.signTransaction) {
+    throw new Error('Wallet not properly connected');
+  }
 
   const fromTokenAccount = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, wallet.publicKey);
 
   try {
     await getAccount(connection, fromTokenAccount);
   } catch {
-    throw new Error("No USDC token account. Please fund your wallet with USDC.");
+    throw new Error('No USDC token account. Please fund your wallet with USDC.');
   }
 
   const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
@@ -103,8 +111,16 @@ export async function executeUSDCPayment(
   const adjustedMain = Math.floor(mainAmount * 10 ** 6);
   const adjustedFee = Math.floor(feeAmount * 10 ** 6);
 
-  const toMainTokenAccount = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, SPL_MINT_ADDRESS, true);
-  const toFeeTokenAccount = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, FEE_WALLET, true);
+  const toMainTokenAccount = await getAssociatedTokenAddress(
+    USDC_MINT_ADDRESS,
+    SPL_MINT_ADDRESS,
+    true
+  );
+  const toFeeTokenAccount = await getAssociatedTokenAddress(
+    USDC_MINT_ADDRESS,
+    FEE_WALLET,
+    true
+  );
 
   const transaction = new Transaction();
 
@@ -112,7 +128,12 @@ export async function executeUSDCPayment(
     await getAccount(connection, toMainTokenAccount);
   } catch {
     transaction.add(
-      createAssociatedTokenAccountInstruction(wallet.publicKey, toMainTokenAccount, SPL_MINT_ADDRESS, USDC_MINT_ADDRESS)
+      createAssociatedTokenAccountInstruction(
+        wallet.publicKey,
+        toMainTokenAccount,
+        SPL_MINT_ADDRESS,
+        USDC_MINT_ADDRESS
+      )
     );
   }
 
@@ -120,7 +141,12 @@ export async function executeUSDCPayment(
     await getAccount(connection, toFeeTokenAccount);
   } catch {
     transaction.add(
-      createAssociatedTokenAccountInstruction(wallet.publicKey, toFeeTokenAccount, FEE_WALLET, USDC_MINT_ADDRESS)
+      createAssociatedTokenAccountInstruction(
+        wallet.publicKey,
+        toFeeTokenAccount,
+        FEE_WALLET,
+        USDC_MINT_ADDRESS
+      )
     );
   }
 
@@ -136,11 +162,14 @@ export async function executeUSDCPayment(
   const signed = await wallet.signTransaction(transaction);
   const signature = await connection.sendRawTransaction(signed.serialize());
 
-  const confirmation = await connection.confirmTransaction({
-    signature,
-    blockhash: latestBlockhash.blockhash,
-    lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-  }, 'confirmed');
+  const confirmation = await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latestBlockhash.blockhash,
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+    },
+    'confirmed'
+  );
 
   if (confirmation.value.err) {
     throw new Error(`Transaction failed: ${confirmation.value.err}`);
@@ -154,21 +183,23 @@ export async function executeClaimFeePayment(
   tokenAmount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) throw new Error('Wallet not connected');
+  if (!wallet.publicKey || !wallet.signTransaction) {
+    throw new Error('Wallet not connected');
+  }
 
   const feeInSol = 0.001;
   const lamports = Math.floor(feeInSol * LAMPORTS_PER_SOL);
   const balance = await connection.getBalance(wallet.publicKey);
 
   if (balance < lamports + 5000) {
-    throw new Error("Insufficient balance for claim fee.");
+    throw new Error('Insufficient balance for claim fee.');
   }
 
   const transaction = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: wallet.publicKey,
       toPubkey: FEE_WALLET,
-      lamports
+      lamports,
     })
   );
 
@@ -179,11 +210,14 @@ export async function executeClaimFeePayment(
   const signed = await wallet.signTransaction(transaction);
   const signature = await connection.sendRawTransaction(signed.serialize());
 
-  const confirmation = await connection.confirmTransaction({
-    signature,
-    blockhash: latestBlockhash.blockhash,
-    lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-  }, 'confirmed');
+  const confirmation = await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latestBlockhash.blockhash,
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+    },
+    'confirmed'
+  );
 
   if (confirmation.value.err) {
     throw new Error(`Transaction failed: ${confirmation.value.err}`);
@@ -191,9 +225,10 @@ export async function executeClaimFeePayment(
 
   return signature;
 }
+
+// === 🔑 PUBLIC KEY FORMATTER ===
 export function formatPublicKey(key: string | PublicKey) {
   if (!key) return '';
-  // Αν είναι PublicKey object, κάνε το σε string
-  const str = typeof key === "string" ? key : key.toBase58();
+  const str = typeof key === 'string' ? key : key.toBase58();
   return `${str.slice(0, 6)}...${str.slice(-6)}`;
 }
