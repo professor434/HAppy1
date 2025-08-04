@@ -294,14 +294,17 @@ export default function PresalePage() {
           txSignature
         );
         console.log("✅ Purchase recorded in backend");
+
+        // Refresh presale status to update progress bar
+        await fetchPresaleStatus();
       } catch (backendError) {
         console.error("⚠️ Backend recording failed but transaction was successful:", backendError);
-        toast.warning("Transaction successful but failed to record in our system. Please contact support with your transaction ID.");
-        // Don't throw here as the transaction was successful
+        toast.warning(
+          "Transaction successful but failed to record in our system. Please contact support with your transaction ID."
+        );
+        // Fallback: update progress locally
+        setTotalRaised(prev => prev + penisAmount);
       }
-      
-      // Update the total raised (in a real implementation, this would come from the chain)
-      setTotalRaised(prev => prev + penisAmount);
       
       // Clear input field
       setAmount("");

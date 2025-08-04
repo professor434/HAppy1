@@ -21,8 +21,14 @@ let claims = [];
 app.use(express.json());
 
 // Enable CORS for frontend requests
+// Allow configuring one or more origins via CORS_ORIGIN env variable
+// Defaults to Vite's dev server for local development
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : ['http://localhost:5173'];
+
 app.use(cors({
-  origin: 'http://localhost:5173', // Vite development server
+  origin: allowedOrigins,
   credentials: true
 }));
 

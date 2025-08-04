@@ -1,341 +1,310 @@
-import { useCallback, useMemo } from 'react';
 import { WalletAdapterProps } from '@solana/wallet-adapter-base';
-import { 
-  Connection, 
-  PublicKey, 
-  Transaction, 
-  SystemProgram, 
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  SystemProgram,
   TransactionSignature,
   LAMPORTS_PER_SOL,
-  clusterApiUrl 
+  SendTransactionError
 } from '@solana/web3.js';
-import { 
-  createTransferInstruction, 
-  getAssociatedTokenAddress, 
+import {
+  createTransferInstruction,
+  getAssociatedTokenAddress,
   getAccount,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_PROGRAM_ID 
+  createAssociatedTokenAccountInstruction
 } from '@solana/spl-token';
-import bs58 from 'bs58';
 
-// Define constants - Updated with the correct addresses
-export const SPL_MINT_ADDRESS = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD');
-export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn');
-export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+// === ✅ CONSTANTS ===
+export const SPL_MINT_ADDRESS = new PublicKey(
+  'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'
+); // Happy Penis SPL mint
+export const TREASURY_WALLET = new PublicKey(
+  '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD'
+); // Εσύ το έχεις ήδη!
+export const FEE_WALLET = new PublicKey(
+  'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'
+); // Για fees
+export const USDC_MINT_ADDRESS = new PublicKey(
+  'EPjFWdd5AufqSSqeM2q8Vs8sgAf9k7UVaA9uAGcQxL5'
+); // Official USDC mint
 
-// Export RPC URL for Solana connection - using devnet for testing
-export const SOLANA_RPC_URL = clusterApiUrl('devnet');
-
-// Fee settings
-export const BUY_FEE_PERCENTAGE = 0.1; // 0.1% fee on buy
-export const CLAIM_FEE_PERCENTAGE = 0.4; // 0.4% fee on claim
-
-// Network connection - using the same RPC URL as defined above
+// ✅ RPC με extrnode
+export const SOLANA_RPC_URL =
+  'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
 export const connection = new Connection(SOLANA_RPC_URL);
 
-/**
- * Format a public key for display (first 4 chars...last 4 chars)
- */
-export const formatPublicKey = (key: string | PublicKey): string => {
-  const keyStr = typeof key === 'string' ? key : key.toString();
-  return `${keyStr.slice(0, 4)}...${keyStr.slice(-4)}`;
-};
+export const BUY_FEE_PERCENTAGE = 0.1;
+export const CLAIM_FEE_PERCENTAGE = 0.4;
 
-/**
- * Calculate fee amount based on the input amount and fee percentage
- */
-export const calculateFee = (amount: number, feePercentage: number): number => {
-  return amount * (feePercentage / 100);
-};
+// === 🧠 HELPERS ===
+export const calculateFee = (amount: number, percentage: number): number =>
+  amount * (percentage / 100);
 
-/**
- * Execute a SOL payment transaction
- */
+// === 💸 SOL PAYMENT ===
 export async function executeSOLPayment(
   amount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
-  console.log("Starting SOL payment execution", { amount });
-  
+  if (!wallet.publicKey || !wallet.signTransaction)
+    throw new Error('Wallet not properly connected');
+
+  const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
+  const mainAmount = amount - feeAmount;
+  const lamportsToSend =
+    Math.floor(mainAmount * LAMPORTS_PER_SOL) +
+    Math.floor(feeAmount * LAMPORTS_PER_SOL);
+  const balance = await connection.getBalance(wallet.publicKey);
+
+  if (balance < lamportsToSend + 5000) {
+    throw new Error('Insufficient SOL balance.');
+  }
+
+  const transaction = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: wallet.publicKey,
+      toPubkey: TREASURY_WALLET,
+      lamports: Math.floor(mainAmount * LAMPORTS_PER_SOL)
+    }),
+    SystemProgram.transfer({
+      fromPubkey: wallet.publicKey,
+      toPubkey: FEE_WALLET,
+      lamports: Math.floor(feeAmount * LAMPORTS_PER_SOL)
+    })
+  );
+
+  transaction.feePayer = wallet.publicKey;
+  const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+
   try {
-    if (!wallet.publicKey || !wallet.signTransaction) {
-      console.error("Wallet connection issue:", { 
-        publicKeyExists: !!wallet.publicKey, 
-        signTransactionExists: !!wallet.signTransaction 
-      });
-      throw new Error('Wallet not properly connected');
-    }
-
-    // Calculate main payment and fee
-    const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
-    const mainAmount = amount - feeAmount;
-    
-    console.log("Payment amounts:", { mainAmount, feeAmount, total: amount });
-    
-    // Create a transaction with two transfers: main payment to SPL_MINT_ADDRESS and fee to FEE_WALLET
-    const transaction = new Transaction();
-    
-    // Main payment
-    transaction.add(
-      SystemProgram.transfer({
-        fromPubkey: wallet.publicKey,
-        toPubkey: SPL_MINT_ADDRESS,
-        lamports: Math.floor(mainAmount * LAMPORTS_PER_SOL),
-      })
-    );
-    
-    // Fee payment
-    transaction.add(
-      SystemProgram.transfer({
-        fromPubkey: wallet.publicKey,
-        toPubkey: FEE_WALLET,
-        lamports: Math.floor(feeAmount * LAMPORTS_PER_SOL),
-      })
-    );
-
-    // Set recent blockhash and fee payer
-    transaction.feePayer = wallet.publicKey;
-    const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-    transaction.recentBlockhash = latestBlockhash.blockhash;
-    
-    console.log("Transaction prepared with blockhash:", latestBlockhash.blockhash);
-
-    try {
-      // Sign the transaction
-      const signedTransaction = await wallet.signTransaction(transaction);
-      console.log("Transaction signed successfully");
-      
-      // Send the transaction
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-      console.log("Transaction sent with signature:", signature);
-      
-      // Wait for confirmation
-      console.log("Waiting for transaction confirmation...");
-      const confirmation = await connection.confirmTransaction({
+    const signed = await wallet.signTransaction(transaction);
+    const signature = await connection.sendRawTransaction(signed.serialize());
+    const confirmation = await connection.confirmTransaction(
+      {
         signature,
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-      }, 'confirmed');
-      
-      if (confirmation.value.err) {
-        console.error("Transaction error:", confirmation.value.err);
-        throw new Error(`Transaction failed: ${confirmation.value.err}`);
-      }
-      
-      console.log("SOL payment confirmed successfully");
-      return signature;
-    } catch (signError) {
-      console.error("Transaction signing/sending error:", signError);
-      throw new Error(signError instanceof Error ? 
-        `Transaction failed: ${signError.message}` : 
-        'Failed to sign or send transaction');
+      },
+      'confirmed'
+    );
+
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${confirmation.value.err}`);
     }
-  } catch (error: unknown) {
-    console.error('SOL payment error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to send SOL payment';
-    throw new Error(errorMessage);
+
+    return signature;
+  } catch (err) {
+    if (err instanceof SendTransactionError) {
+      const logs = await err.getLogs(connection);
+      const baseMessage = err.message
+        .split('Logs:')[0]
+        .replace(/Catch the `SendTransactionError`.*/i, '')
+        .trim();
+      throw new Error(
+        logs && logs.length
+          ? `Transaction failed: ${baseMessage}\nLogs:\n${logs.join('\n')}`
+          : `Transaction failed: ${baseMessage}`
+      );
+    }
+    throw new Error(
+      err instanceof Error
+        ? `Transaction failed: ${err.message}`
+        : 'Failed to sign or send transaction'
+    );
   }
 }
 
-/**
- * Execute a USDC payment transaction
- */
+// === 💰 USDC PAYMENT ===
 export async function executeUSDCPayment(
-  amount: number, 
+  amount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
-  console.log("Starting USDC payment execution", { amount });
-  
+  if (!wallet.publicKey || !wallet.signTransaction)
+    throw new Error('Wallet not properly connected');
+
+  const fromTokenAccount = await getAssociatedTokenAddress(
+    USDC_MINT_ADDRESS,
+    wallet.publicKey
+  );
+
   try {
-    if (!wallet.publicKey || !wallet.signTransaction) {
-      console.error("Wallet connection issue:", { 
-        publicKeyExists: !!wallet.publicKey, 
-        signTransactionExists: !!wallet.signTransaction 
-      });
-      throw new Error('Wallet not properly connected');
-    }
+    await getAccount(connection, fromTokenAccount);
+  } catch {
+    throw new Error('No USDC token account. Please fund your wallet with USDC.');
+  }
 
-    // Get the sender's token account
-    const fromTokenAccount = await getAssociatedTokenAddress(
-      USDC_MINT_ADDRESS,
-      wallet.publicKey
-    );
-    
-    console.log("Sender token account:", fromTokenAccount.toString());
+  const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
+  const mainAmount = amount - feeAmount;
 
-    try {
-      // Check if the sender's token account exists
-      await getAccount(connection, fromTokenAccount);
-      console.log("Sender's USDC token account exists");
-    } catch (error) {
-      console.error("Token account error:", error);
-      throw new Error('You don\'t have a USDC token account. Please add USDC tokens to your wallet first.');
-    }
+  const adjustedMain = Math.floor(mainAmount * 10 ** 6);
+  const adjustedFee = Math.floor(feeAmount * 10 ** 6);
 
-    // USDC has 6 decimals
-    const tokenDecimals = 6;
-    
-    // Calculate main payment and fee
-    const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
-    const mainAmount = amount - feeAmount;
-    
-    // Convert to token units
-    const adjustedMainAmount = Math.floor(mainAmount * Math.pow(10, tokenDecimals));
-    const adjustedFeeAmount = Math.floor(feeAmount * Math.pow(10, tokenDecimals));
-    
-    console.log("Payment amounts:", { 
-      mainAmount, feeAmount, total: amount,
-      adjustedMainAmount, adjustedFeeAmount
-    });
+  const toMainTokenAccount = await getAssociatedTokenAddress(
+    USDC_MINT_ADDRESS,
+    SPL_MINT_ADDRESS,
+    true
+  );
+  const toFeeTokenAccount = await getAssociatedTokenAddress(
+    USDC_MINT_ADDRESS,
+    FEE_WALLET,
+    true
+  );
 
-    // Get the SPL_MINT_ADDRESS token account
-    const toMainTokenAccount = await getAssociatedTokenAddress(
-      USDC_MINT_ADDRESS,
-      SPL_MINT_ADDRESS
-    );
-    
-    // Get the FEE_WALLET token account
-    const toFeeTokenAccount = await getAssociatedTokenAddress(
-      USDC_MINT_ADDRESS,
-      FEE_WALLET
-    );
-    
-    console.log("Recipient token accounts:", {
-      main: toMainTokenAccount.toString(),
-      fee: toFeeTokenAccount.toString()
-    });
+  const transaction = new Transaction();
 
-    // Create a transaction with two transfers
-    const transaction = new Transaction();
-    
-    // Main payment to SPL_MINT_ADDRESS
+  try {
+    await getAccount(connection, toMainTokenAccount);
+  } catch {
     transaction.add(
-      createTransferInstruction(
-        fromTokenAccount,
+      createAssociatedTokenAccountInstruction(
+        wallet.publicKey,
         toMainTokenAccount,
-        wallet.publicKey,
-        adjustedMainAmount
+        SPL_MINT_ADDRESS,
+        USDC_MINT_ADDRESS
       )
     );
-    
-    // Fee payment to FEE_WALLET
-    transaction.add(
-      createTransferInstruction(
-        fromTokenAccount,
-        toFeeTokenAccount,
-        wallet.publicKey,
-        adjustedFeeAmount
-      )
-    );
-    
-    // Set recent blockhash and fee payer
-    transaction.feePayer = wallet.publicKey;
-    const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-    transaction.recentBlockhash = latestBlockhash.blockhash;
-    
-    console.log("Transaction prepared with blockhash:", latestBlockhash.blockhash);
+  }
 
-    try {
-      // Sign the transaction
-      const signedTransaction = await wallet.signTransaction(transaction);
-      console.log("Transaction signed successfully");
-      
-      // Send the transaction
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-      console.log("Transaction sent with signature:", signature);
-      
-      // Wait for confirmation
-      console.log("Waiting for transaction confirmation...");
-      const confirmation = await connection.confirmTransaction({
+  try {
+    await getAccount(connection, toFeeTokenAccount);
+  } catch {
+    transaction.add(
+      createAssociatedTokenAccountInstruction(
+        wallet.publicKey,
+        toFeeTokenAccount,
+        FEE_WALLET,
+        USDC_MINT_ADDRESS
+      )
+    );
+  }
+
+  transaction.add(
+    createTransferInstruction(
+      fromTokenAccount,
+      toMainTokenAccount,
+      wallet.publicKey,
+      adjustedMain
+    ),
+    createTransferInstruction(
+      fromTokenAccount,
+      toFeeTokenAccount,
+      wallet.publicKey,
+      adjustedFee
+    )
+  );
+
+  transaction.feePayer = wallet.publicKey;
+  const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+
+  try {
+    const signed = await wallet.signTransaction(transaction);
+    const signature = await connection.sendRawTransaction(signed.serialize());
+    const confirmation = await connection.confirmTransaction(
+      {
         signature,
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-      }, 'confirmed');
-      
-      if (confirmation.value.err) {
-        console.error("Transaction error:", confirmation.value.err);
-        throw new Error(`Transaction failed: ${confirmation.value.err}`);
-      }
-      
-      console.log("USDC payment confirmed successfully");
-      return signature;
-    } catch (signError) {
-      console.error("Transaction signing/sending error:", signError);
-      throw new Error(signError instanceof Error ? 
-        `Transaction failed: ${signError.message}` : 
-        'Failed to sign or send transaction');
+      },
+      'confirmed'
+    );
+
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${confirmation.value.err}`);
     }
-  } catch (error: unknown) {
-    console.error('USDC payment error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to send USDC payment';
-    throw new Error(errorMessage);
+
+    return signature;
+  } catch (err) {
+    if (err instanceof SendTransactionError) {
+      const logs = await err.getLogs(connection);
+      const baseMessage = err.message
+        .split('Logs:')[0]
+        .replace(/Catch the `SendTransactionError`.*/i, '')
+        .trim();
+      throw new Error(
+        logs && logs.length
+          ? `Transaction failed: ${baseMessage}\nLogs:\n${logs.join('\n')}`
+          : `Transaction failed: ${baseMessage}`
+      );
+    }
+    throw new Error(
+      err instanceof Error
+        ? `Transaction failed: ${err.message}`
+        : 'Failed to sign or send transaction'
+    );
   }
 }
 
-/**
- * Execute the claim fee payment (0.4% of claimed tokens)
- * This function should be called when a user claims their tokens
- */
+// === ✅ CLAIM FEE ===
 export async function executeClaimFeePayment(
   tokenAmount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
+  if (!wallet.publicKey || !wallet.signTransaction)
+    throw new Error('Wallet not connected');
+
+  const feeInSol = 0.001;
+  const lamports = Math.floor(feeInSol * LAMPORTS_PER_SOL);
+  const balance = await connection.getBalance(wallet.publicKey);
+
+  if (balance < lamports + 5000) {
+    throw new Error('Insufficient balance for claim fee.');
+  }
+
+  const transaction = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: wallet.publicKey,
+      toPubkey: FEE_WALLET,
+      lamports
+    })
+  );
+
+  transaction.feePayer = wallet.publicKey;
+  const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+
   try {
-    if (!wallet.publicKey || !wallet.signTransaction) {
-      throw new Error('Wallet not connected');
-    }
-
-    // Calculate fee amount (0.4% of claimed tokens)
-    const feeAmount = calculateFee(tokenAmount, CLAIM_FEE_PERCENTAGE);
-    const feeInSol = 0.001; // Small SOL fee for the transaction
-    
-    console.log("Claim fee payment:", { tokenAmount, feePercentage: CLAIM_FEE_PERCENTAGE, feeAmount, feeInSol });
-
-    // Create a transaction to pay the claim fee
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: wallet.publicKey,
-        toPubkey: FEE_WALLET,
-        lamports: Math.floor(feeInSol * LAMPORTS_PER_SOL),
-      })
-    );
-
-    // Set recent blockhash and fee payer
-    transaction.feePayer = wallet.publicKey;
-    const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-    transaction.recentBlockhash = latestBlockhash.blockhash;
-
-    try {
-      // Sign the transaction
-      const signedTransaction = await wallet.signTransaction(transaction);
-      
-      // Send the transaction
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-      
-      // Wait for confirmation
-      console.log("Waiting for claim fee transaction confirmation...");
-      const confirmation = await connection.confirmTransaction({
+    const signed = await wallet.signTransaction(transaction);
+    const signature = await connection.sendRawTransaction(signed.serialize());
+    const confirmation = await connection.confirmTransaction(
+      {
         signature,
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-      }, 'confirmed');
-      
-      if (confirmation.value.err) {
-        console.error("Claim fee transaction error:", confirmation.value.err);
-        throw new Error(`Transaction failed: ${confirmation.value.err}`);
-      }
-      
-      console.log("Claim fee payment confirmed successfully");
-      return signature;
-    } catch (signError) {
-      console.error("Transaction signing/sending error:", signError);
-      throw new Error(signError instanceof Error ? 
-        `Transaction failed: ${signError.message}` : 
-        'Failed to sign or send transaction');
+      },
+      'confirmed'
+    );
+
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${confirmation.value.err}`);
     }
-  } catch (error: unknown) {
-    console.error('Claim fee payment error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to pay claim fee';
-    throw new Error(errorMessage);
+
+    return signature;
+  } catch (err) {
+    if (err instanceof SendTransactionError) {
+      const logs = await err.getLogs(connection);
+      const baseMessage = err.message
+        .split('Logs:')[0]
+        .replace(/Catch the `SendTransactionError`.*/i, '')
+        .trim();
+      throw new Error(
+        logs && logs.length
+          ? `Transaction failed: ${baseMessage}\nLogs:\n${logs.join('\n')}`
+          : `Transaction failed: ${baseMessage}`
+      );
+    }
+    throw new Error(
+      err instanceof Error
+        ? `Transaction failed: ${err.message}`
+        : 'Failed to sign or send transaction'
+    );
   }
 }
+
+export function formatPublicKey(key: string | PublicKey) {
+  if (!key) return '';
+  const str = typeof key === 'string' ? key : key.toBase58();
+  return `${str.slice(0, 6)}...${str.slice(-6)}`;
+}
+
