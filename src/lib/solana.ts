@@ -18,7 +18,7 @@ import {
 export const SPL_MINT_ADDRESS = new PublicKey('GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'); // Happy Penis SPL mint
 export const TREASURY_WALLET = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD'); // Εσύ το έχεις ήδη!
 export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'); // Για fees
-export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2q8Vs8sgAf9k7UVaA9uAGcQxL5'); // Official USDC mint
+export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // Official USDC mint
 
 
 // ✅ RPC με extrnode
