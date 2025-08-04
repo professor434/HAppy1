@@ -602,10 +602,8 @@ export default function PresalePage() {
           </CardContent>
         </Card>
       </main>
-
- {/* Footer */}
+{/* Footer */}
 <footer className="py-4 text-center text-sm text-white bg-black/70">
-  {/* διακοσμητική εικόνα στο footer */}
   <img
     src="/assets/images/bag1.jpg"
     alt="Bag"
@@ -613,3 +611,5 @@ export default function PresalePage() {
   />
   © 2025 Happy Penis Token. All rights reserved.
 </footer>
+</div>  {/* <-- κλείσιμο του root div */}
+);
