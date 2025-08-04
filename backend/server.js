@@ -18,8 +18,12 @@ const FEE_WALLET = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 // CORS: allow all if CORS_ORIGIN unset, otherwise restrict to provided list
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
-  .map(origin => origin.trim())
+  .map(origin => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
+
+if (allowedOrigins.length > 0) {
+  console.log('🔒 CORS enabled for:', allowedOrigins);
+}
 
 app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : true,
