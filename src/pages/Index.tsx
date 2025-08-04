@@ -613,3 +613,4 @@ export default function PresalePage() {
 </footer>
 </div>  
 );
+} 
