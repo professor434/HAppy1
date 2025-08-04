@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 
-// Base URL for API - would come from environment in production
-const API_BASE_URL = 'https://happy-penis-api.up.railway.app';
+// Base URL for API - configured via environment for production
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Define interfaces for API responses
 interface PurchaseRecord {
