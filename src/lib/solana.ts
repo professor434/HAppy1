@@ -67,13 +67,13 @@ export async function executeSOLPayment(
   transaction.recentBlockhash = latestBlockhash.blockhash;
 
   const signed = await wallet.signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signed.serialize());
+ const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+...
+const confirmation = await connection.confirmTransaction(
+  { signature, blockhash: latestBlockhash.blockhash, lastValidBlockHeight: latestBlockhash.lastValidBlockHeight },
+  'confirmed'   // ίδιο commitment με getLatestBlockhash
+);
 
-  const confirmation = await connection.confirmTransaction({
-    signature,
-    blockhash: latestBlockhash.blockhash,
-    lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-  }, 'confirmed');
 
   if (confirmation.value.err) {
     throw new Error(`Transaction failed: ${confirmation.value.err}`);
