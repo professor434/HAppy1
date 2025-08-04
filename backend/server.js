@@ -15,13 +15,14 @@ const SPL_MINT_ADDRESS = 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs';
 const TREASURY_WALLET = '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 const FEE_WALLET = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 
-// CORS for production + localhost
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+// CORS: allow all if CORS_ORIGIN unset, otherwise restrict to provided list
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
-  .map(origin => origin.trim());
+  .map(origin => origin.trim())
+  .filter(Boolean);
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
   credentials: true
 }));
 
