@@ -611,5 +611,5 @@ export default function PresalePage() {
   />
   © 2025 Happy Penis Token. All rights reserved.
 </footer>
-</div>  {/* <-- κλείσιμο του root div */}
+</div>  
 );
