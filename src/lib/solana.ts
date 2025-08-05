@@ -146,7 +146,7 @@ export async function executeUSDCPayment(
 
   const toMainTokenAccount = await getAssociatedTokenAddress(
     USDC_MINT_ADDRESS,
-    SPL_MINT_ADDRESS,
+    TREASURY_WALLET,
     true
   );
   const toFeeTokenAccount = await getAssociatedTokenAddress(
@@ -164,7 +164,7 @@ export async function executeUSDCPayment(
       createAssociatedTokenAccountInstruction(
         wallet.publicKey,
         toMainTokenAccount,
-        SPL_MINT_ADDRESS,
+        TREASURY_WALLET,
         USDC_MINT_ADDRESS
       )
     );
