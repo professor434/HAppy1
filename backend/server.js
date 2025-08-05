@@ -16,9 +16,11 @@ const SPL_MINT_ADDRESS = 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs';
 const TREASURY_WALLET  = '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 const FEE_WALLET       = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 
-// CORS: επιτρέπει το Vercel domain και το localhost
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,https://happypennisofficialpresale.vercel.app').split(',');
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// CORS: επιτρέπουμε όλα τα origins εκτός αν δοθούν συγκεκριμένα μέσω μεταβλητής
+const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : null;
+const corsOptions = allowedOrigins ? { origin: allowedOrigins, credentials: true } : undefined;
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // In-memory store με επίμονη αποθήκευση
