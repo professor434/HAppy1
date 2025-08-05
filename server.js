@@ -10,20 +10,56 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const SPL_MINT_ADDRESS = "7TaNrHwaG4ii4F7R6vsfyaZxxTPQ5TKNhUWzmjs8EJRp"; 
+const SPL_MINT_ADDRESS = "7TaNrHwaG4ii4F7R6vsfyaZxxTPQ5TKNhUWzmjs8EJRp";
 const FEE_WALLET = "7ZZLAAdhz1GqL7Ug3CF4pGbUZ3tMLamQ2WrNNYAXkbdw";
+
+const DATA_DIR = process.env.DATA_DIR || '/data';
+const PURCHASES_FILE = path.join(DATA_DIR, 'purchases.json');
+const CLAIMS_FILE = path.join(DATA_DIR, 'claims.json');
 
 // Initialize data store - in a real app, this would be a database
 let purchases = [];
 let claims = [];
 
+async function ensureDataDir() {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+}
+
+async function loadData() {
+  await ensureDataDir();
+  try {
+    const purchasesData = await fs.readFile(PURCHASES_FILE, 'utf8');
+    purchases = JSON.parse(purchasesData);
+  } catch {
+    purchases = [];
+  }
+  try {
+    const claimsData = await fs.readFile(CLAIMS_FILE, 'utf8');
+    claims = JSON.parse(claimsData);
+  } catch {
+    claims = [];
+  }
+}
+
+async function saveData() {
+  await ensureDataDir();
+  await fs.writeFile(PURCHASES_FILE, JSON.stringify(purchases, null, 2));
+  await fs.writeFile(CLAIMS_FILE, JSON.stringify(claims, null, 2));
+}
+
 // Parse JSON bodies
 app.use(express.json());
 
 // Enable CORS for frontend requests
+// Allow configuring one or more origins via CORS_ORIGIN env variable
+// Defaults to Vite's dev server for local development
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : true;
+
 app.use(cors({
-  origin: 'http://localhost:5173', // Vite development server
-  credentials: true
+  origin: allowedOrigins,
+  credentials: true,
 }));
 
 // Load presale tiers from JSON file
@@ -44,6 +80,7 @@ let presaleTiers = [];
 // Initialize data
 const initializeData = async () => {
   presaleTiers = await loadTiers();
+  await loadData();
   console.log(`Loaded ${presaleTiers.length} presale tiers`);
 };
 
@@ -91,7 +128,7 @@ app.get('/status', (req, res) => {
   });
 });
 
-app.post('/buy', (req, res) => {
+app.post('/buy', async (req, res) => {
   const { wallet, amount, token, transaction_signature } = req.body;
   
   // Validate required fields
@@ -118,8 +155,9 @@ app.post('/buy', (req, res) => {
   };
   
   purchases.push(purchase);
+  await saveData();
   console.log(`Recorded purchase: ${amount} tokens for wallet ${wallet.slice(0, 6)}...`);
-  
+
   res.json(purchase);
 });
 
@@ -141,7 +179,7 @@ app.get('/can-claim/:wallet', (req, res) => {
   });
 });
 
-app.post('/claim', (req, res) => {
+app.post('/claim', async (req, res) => {
   const { wallet, transaction_signature } = req.body;
   
   // Validate required fields
@@ -183,8 +221,9 @@ app.post('/claim', (req, res) => {
   };
   
   claims.push(claim);
+  await saveData();
   console.log(`Recorded claim: ${totalTokens} tokens for wallet ${wallet.slice(0, 6)}...`);
-  
+
   res.json({ success: true });
 });
 
@@ -211,8 +250,9 @@ app.get('/export', (req, res) => {
 // Initialize and start the server
 (async () => {
   await initializeData();
+  console.log(`Using data directory at ${DATA_DIR}`);
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`CORS enabled for http://localhost:5173`);
+    console.log(`CORS enabled for ${allowedOrigins.join(', ')}`);
   });
 })();
