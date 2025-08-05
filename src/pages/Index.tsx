@@ -46,7 +46,7 @@ const PRESALE_END_DATE = new Date('2025-12-31');
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
-  const { publicKey, connected, signTransaction } = useWallet();
+  const { publicKey, connected, signTransaction, sendTransaction } = useWallet();
   const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]); // Start from tier 1
   const [totalRaised, setTotalRaised] = useState(0);
   const [amount, setAmount] = useState("");
@@ -218,7 +218,8 @@ export default function PresalePage() {
         isConnected: connected,
         publicKeyExists: !!publicKey,
         publicKey: publicKey?.toString(),
-        signTransactionExists: !!signTransaction
+        signTransactionExists: !!signTransaction,
+        sendTransactionExists: !!sendTransaction,
       });
       
       const penisAmount = parseFloat(amount);
@@ -243,7 +244,7 @@ export default function PresalePage() {
         
         try {
           // Execute real SOL payment
-          txSignature = await executeSOLPayment(solPrice, { publicKey, signTransaction });
+          txSignature = await executeSOLPayment(solPrice, { publicKey, signTransaction, sendTransaction });
           console.log("✅ SOL payment execution completed");
         } catch (paymentError) {
           console.error("❌ SOL payment execution failed:", paymentError);
@@ -257,7 +258,7 @@ export default function PresalePage() {
         
         try {
           // Execute real USDC payment
-          txSignature = await executeUSDCPayment(totalPrice, { publicKey, signTransaction });
+          txSignature = await executeUSDCPayment(totalPrice, { publicKey, signTransaction, sendTransaction });
           console.log("✅ USDC payment execution completed");
         } catch (paymentError) {
           console.error("❌ USDC payment execution failed:", paymentError);
@@ -294,14 +295,17 @@ export default function PresalePage() {
           txSignature
         );
         console.log("✅ Purchase recorded in backend");
+
+        // Refresh presale status to update progress bar
+        await fetchPresaleStatus();
       } catch (backendError) {
         console.error("⚠️ Backend recording failed but transaction was successful:", backendError);
-        toast.warning("Transaction successful but failed to record in our system. Please contact support with your transaction ID.");
-        // Don't throw here as the transaction was successful
+        toast.warning(
+          "Transaction successful but failed to record in our system. Please contact support with your transaction ID."
+        );
+        // Fallback: update progress locally
+        setTotalRaised(prev => prev + penisAmount);
       }
-      
-      // Update the total raised (in a real implementation, this would come from the chain)
-      setTotalRaised(prev => prev + penisAmount);
       
       // Clear input field
       setAmount("");
@@ -344,7 +348,7 @@ export default function PresalePage() {
       const tokenAmount = parseFloat(claimableTokens.total);
       
       // Execute claim fee payment transaction
-      const txSignature = await executeClaimFeePayment(tokenAmount, { publicKey, signTransaction });
+      const txSignature = await executeClaimFeePayment(tokenAmount, { publicKey, signTransaction, sendTransaction });
       
       if (!txSignature) {
         throw new Error("Claim fee payment failed");
