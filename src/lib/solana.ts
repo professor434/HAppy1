@@ -20,8 +20,8 @@ export const TREASURY_WALLET = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3
 export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'); // Για fees
 export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // Official USDC mint
 
-// ✅ RPC με extrnode
-export const SOLANA_RPC_URL = 'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
+// ✅ Official Solana mainnet RPC
+export const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
 export const connection = new Connection(SOLANA_RPC_URL);
 
 export const BUY_FEE_PERCENTAGE = 0.1;
@@ -38,7 +38,7 @@ async function signAndSendTransaction(
 ): Promise<TransactionSignature> {
   transaction.feePayer = wallet.publicKey!;
 
-  let latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  let latestBlockhash = await connection.getLatestBlockhash('finalized');
   transaction.recentBlockhash = latestBlockhash.blockhash;
 
   let signed = await wallet.signTransaction!(transaction);
@@ -50,7 +50,7 @@ async function signAndSendTransaction(
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
       },
-      'confirmed'
+      'finalized'
     );
 
     if (confirmation.value.err) {
@@ -60,7 +60,7 @@ async function signAndSendTransaction(
     return signature;
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes('blockhash not found')) {
-      latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      latestBlockhash = await connection.getLatestBlockhash('finalized');
       transaction.recentBlockhash = latestBlockhash.blockhash;
       signed = await wallet.signTransaction!(transaction);
 
@@ -71,7 +71,7 @@ async function signAndSendTransaction(
           blockhash: latestBlockhash.blockhash,
           lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
         },
-        'confirmed'
+        'finalized'
       );
 
       if (confirmation.value.err) {
