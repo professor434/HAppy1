@@ -7,7 +7,6 @@ import {
   TorusWalletAdapter,
   LedgerWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
-import { SolanaMobileWalletAdapter as MobileWalletAdapter } from '@solana-mobile/wallet-adapter-mobile';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { SOLANA_RPC_URL } from '@/lib/solana';
 
@@ -25,13 +24,6 @@ export const SolanaWalletProvider: FC<SolanaWalletProviderProps> = ({ children }
   // Configure supported wallets
   const wallets = useMemo(
     () => [
-      new MobileWalletAdapter({
-        appIdentity: {
-          name: 'Happy Penis Presale',
-          uri: 'https://happypennisofficialpresale.vercel.app',
-          icon: 'https://happypennisofficialpresale.vercel.app/logo192.png',
-        },
-      }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter({ network }),
       new TorusWalletAdapter({ params: { env: network } }),
