@@ -54,23 +54,21 @@ let toastTimeouts: Map<string, ReturnType<typeof setTimeout>> | undefined;
 
 const addToRemoveQueue = (toastId: string) => {
   toastTimeouts ??= new Map();
-  if (!toastTimeouts) {
-    return;
-  }
+
 
   if (toastTimeouts.has(toastId)) {
     return;
   }
 
   const timeout = setTimeout(() => {
-    toastTimeouts.delete(toastId);
+    toastTimeouts?.delete(toastId);
     dispatch({
       type: 'REMOVE_TOAST',
       toastId,
     });
   }, TOAST_REMOVE_DELAY);
 
-  toastTimeouts.set(toastId, timeout);
+  toastTimeouts?.set(toastId, timeout);
 };
 
 export const reducer = (state: State, action: Action): State => {
