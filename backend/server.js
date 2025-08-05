@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 4444; // τρέχουμε στη θύρα 4444
+const PORT = process.env.PORT || 8080; // τρέχουμε στη θύρα 8080
 
 // Σταθερές για τα wallets/tokens (όπως πριν)
 const SPL_MINT_ADDRESS = 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs';
