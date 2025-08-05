@@ -1,12 +1,6 @@
 import { FC, ReactNode, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
-import {
-  PhantomWalletAdapter,
-  SolflareWalletAdapter,
-  TorusWalletAdapter,
-  LedgerWalletAdapter,
-} from '@solana/wallet-adapter-wallets';
+import { TorusWalletAdapter, LedgerWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { SOLANA_RPC_URL } from '@/lib/solana';
 
@@ -18,17 +12,10 @@ interface SolanaWalletProviderProps {
 }
 
 export const SolanaWalletProvider: FC<SolanaWalletProviderProps> = ({ children }) => {
-  const network = WalletAdapterNetwork.Mainnet;
-
   // Configure supported wallets
   const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-      new TorusWalletAdapter(),
-      new LedgerWalletAdapter(),
-    ],
-    [network]
+    () => [new TorusWalletAdapter(), new LedgerWalletAdapter()],
+    []
   );
 
   return (
