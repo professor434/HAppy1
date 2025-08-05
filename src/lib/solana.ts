@@ -31,6 +31,60 @@ export const CLAIM_FEE_PERCENTAGE = 0.4;
 export const calculateFee = (amount: number, percentage: number): number =>
   amount * (percentage / 100);
 
+// Re-sign and resend if the blockhash has expired
+async function signAndSendTransaction(
+  transaction: Transaction,
+  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
+): Promise<TransactionSignature> {
+  transaction.feePayer = wallet.publicKey!;
+
+  let latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+
+  let signed = await wallet.signTransaction!(transaction);
+  try {
+    const signature = await connection.sendRawTransaction(signed.serialize());
+    const confirmation = await connection.confirmTransaction(
+      {
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      },
+      'confirmed'
+    );
+
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${confirmation.value.err}`);
+    }
+
+    return signature;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes('blockhash not found')) {
+      latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      transaction.recentBlockhash = latestBlockhash.blockhash;
+      signed = await wallet.signTransaction!(transaction);
+
+      const signature = await connection.sendRawTransaction(signed.serialize());
+      const confirmation = await connection.confirmTransaction(
+        {
+          signature,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        },
+        'confirmed'
+      );
+
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${confirmation.value.err}`);
+      }
+
+      return signature;
+    }
+
+    throw error;
+  }
+}
+
 // === 💸 SOL PAYMENT ===
 export async function executeSOLPayment(
   amount: number,
@@ -64,28 +118,7 @@ export async function executeSOLPayment(
       lamports: Math.floor(feeAmount * LAMPORTS_PER_SOL),
     })
   );
-
-  transaction.feePayer = wallet.publicKey;
-  const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-  transaction.recentBlockhash = latestBlockhash.blockhash;
-
-  const signed = await wallet.signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signed.serialize());
-
-  const confirmation = await connection.confirmTransaction(
-    {
-      signature,
-      blockhash: latestBlockhash.blockhash,
-      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-    },
-    'confirmed'
-  );
-
-  if (confirmation.value.err) {
-    throw new Error(`Transaction failed: ${confirmation.value.err}`);
-  }
-
-  return signature;
+  return signAndSendTransaction(transaction, wallet);
 }
 
 // === 💰 USDC PAYMENT ===
@@ -154,28 +187,7 @@ export async function executeUSDCPayment(
     createTransferInstruction(fromTokenAccount, toMainTokenAccount, wallet.publicKey, adjustedMain),
     createTransferInstruction(fromTokenAccount, toFeeTokenAccount, wallet.publicKey, adjustedFee)
   );
-
-  transaction.feePayer = wallet.publicKey;
-  const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-  transaction.recentBlockhash = latestBlockhash.blockhash;
-
-  const signed = await wallet.signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signed.serialize());
-
-  const confirmation = await connection.confirmTransaction(
-    {
-      signature,
-      blockhash: latestBlockhash.blockhash,
-      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-    },
-    'confirmed'
-  );
-
-  if (confirmation.value.err) {
-    throw new Error(`Transaction failed: ${confirmation.value.err}`);
-  }
-
-  return signature;
+  return signAndSendTransaction(transaction, wallet);
 }
 
 // === ✅ CLAIM FEE ===
@@ -202,28 +214,7 @@ export async function executeClaimFeePayment(
       lamports,
     })
   );
-
-  transaction.feePayer = wallet.publicKey;
-  const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-  transaction.recentBlockhash = latestBlockhash.blockhash;
-
-  const signed = await wallet.signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signed.serialize());
-
-  const confirmation = await connection.confirmTransaction(
-    {
-      signature,
-      blockhash: latestBlockhash.blockhash,
-      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-    },
-    'confirmed'
-  );
-
-  if (confirmation.value.err) {
-    throw new Error(`Transaction failed: ${confirmation.value.err}`);
-  }
-
-  return signature;
+  return signAndSendTransaction(transaction, wallet);
 }
 
 // === 🔑 PUBLIC KEY FORMATTER ===
