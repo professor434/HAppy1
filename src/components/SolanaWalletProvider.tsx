@@ -10,7 +10,7 @@ import {
 import {
   SolanaMobileWalletAdapter,
   createDefaultAuthorizationResultCache,
-} from '@solana-mobile/wallet-adapter-mobile';
+} from '@/stubs/solana-mobile-wallet-adapter-mobile';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { SOLANA_RPC_URL } from '@/lib/solana';
 
