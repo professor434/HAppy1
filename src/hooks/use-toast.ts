@@ -50,9 +50,11 @@ interface State {
   toasts: ToasterToast[];
 }
 
-const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+let toastTimeouts: Map<string, ReturnType<typeof setTimeout>> | undefined;
 
 const addToRemoveQueue = (toastId: string) => {
+  toastTimeouts ??= new Map();
+
   if (toastTimeouts.has(toastId)) {
     return;
   }
