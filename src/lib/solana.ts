@@ -21,8 +21,6 @@ export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVu
 export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // Official USDC mint
 
 
-
-// ✅ RPC με extrnode
 const DEFAULT_SOLANA_RPC_URL =
   'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
 export const SOLANA_RPC_URL =
