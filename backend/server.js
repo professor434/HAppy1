@@ -29,8 +29,8 @@ app.use(express.json());
 let purchases = [];
 let claims    = [];
 
-// Διαδρομές για τα αρχεία δεδομένων - αποθήκευση σε mounted volume
-const DATA_DIR       = '/data';
+// Διαδρομές για τα αρχεία δεδομένων - αποθήκευση στο project data folder
+const DATA_DIR       = path.join(__dirname, '..', 'data');
 const PURCHASES_FILE = path.join(DATA_DIR, 'purchases.json');
 const CLAIMS_FILE    = path.join(DATA_DIR, 'claims.json');
 
