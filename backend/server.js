@@ -9,16 +9,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 4444; // τρέχουμε στη θύρα 4444
+const PORT = process.env.PORT || 8080; // τρέχουμε στη θύρα 8080
 
 // Σταθερές για τα wallets/tokens (όπως πριν)
 const SPL_MINT_ADDRESS = 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs';
 const TREASURY_WALLET  = '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 const FEE_WALLET       = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 
-// CORS: επιτρέπουμε όλα τα origins εκτός αν δοθούν συγκεκριμένα μέσω μεταβλητής
-const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : null;
-const corsOptions = allowedOrigins ? { origin: allowedOrigins, credentials: true } : undefined;
+// CORS: επιτρέπουμε συγκεκριμένα origins από μεταβλητή ή default στο Vercel site
+const allowedOrigins = (process.env.CORS_ORIGIN || 'https://happypennisofficialpresale.vercel.app')
+  .split(',')
+  .map(origin => origin.trim());
+const corsOptions = { origin: allowedOrigins, credentials: true };
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
@@ -27,8 +29,8 @@ app.use(express.json());
 let purchases = [];
 let claims    = [];
 
-// Διαδρομές για τα αρχεία δεδομένων - αποθήκευση σε mounted volume
-const DATA_DIR       = '/data';
+// Διαδρομές για τα αρχεία δεδομένων - αποθήκευση στο project data folder
+const DATA_DIR       = path.join(__dirname, '..', 'data');
 const PURCHASES_FILE = path.join(DATA_DIR, 'purchases.json');
 const CLAIMS_FILE    = path.join(DATA_DIR, 'claims.json');
 
