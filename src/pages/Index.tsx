@@ -9,14 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { toast } from "sonner";
-import { 
-  executeSOLPayment, 
-  executeUSDCPayment, 
+import {
+  executeSOLPayment,
+  executeUSDCPayment,
   executeClaimFeePayment,
-  formatPublicKey, 
-  SPL_MINT_ADDRESS, 
+  formatPublicKey,
+  SPL_MINT_ADDRESS,
+  TREASURY_WALLET,
   FEE_WALLET,
-  USDC_MINT_ADDRESS
+  connection
 } from '@/lib/solana';
 import { CustomWalletButton } from '@/components/CustomWalletButton';
 import { recordPurchase, canClaimTokens, recordClaim, getCurrentTier, getPresaleStatus } from '@/lib/api';
@@ -237,8 +238,9 @@ export default function PresalePage() {
         console.log(`💸 Attempting SOL payment of ${solPrice} SOL`);
         toast.info(`Preparing SOL payment: ${solPrice} SOL`);
         
-        console.log("Receiver address:", SPL_MINT_ADDRESS.toString());
+        console.log("Receiver address:", TREASURY_WALLET.toString());
         console.log("Fee wallet address:", FEE_WALLET.toString());
+        console.log("RPC endpoint:", connection.rpcEndpoint);
         
         try {
           // Execute real SOL payment
