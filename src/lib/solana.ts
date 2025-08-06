@@ -44,7 +44,7 @@ async function signAndSendTransaction(
 ): Promise<TransactionSignature> {
   transaction.feePayer = wallet.publicKey!;
 
-  let latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  let latestBlockhash = await connection.getLatestBlockhash('finalize');
   transaction.recentBlockhash = latestBlockhash.blockhash;
 
   let signed = await wallet.signTransaction!(transaction);
@@ -66,7 +66,7 @@ async function signAndSendTransaction(
     return signature;
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes('blockhash not found')) {
-      latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      latestBlockhash = await connection.getLatestBlockhash('finalize');
       transaction.recentBlockhash = latestBlockhash.blockhash;
       signed = await wallet.signTransaction!(transaction);
 
@@ -205,7 +205,7 @@ export async function executeClaimFeePayment(
     throw new Error('Wallet not connected');
   }
 
-  const feeInSol = 0.001;
+  const feeInSol = 0.002;
   const lamports = Math.floor(feeInSol * LAMPORTS_PER_SOL);
   const balance = await connection.getBalance(wallet.publicKey);
 
