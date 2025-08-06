@@ -20,12 +20,13 @@ export const TREASURY_WALLET = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3
 export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'); // Για fees
 export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // Official USDC mint
 
-// ✅ RPC endpoint (override via VITE_SOLANA_RPC_URL)
+// ✅ RPC endpoint
 // Never fallback to api.mainnet-beta.solana.com; always use a dedicated provider.
-const DEFAULT_SOLANA_RPC_URL =
-  'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
 export const SOLANA_RPC_URL =
-  import.meta.env.VITE_SOLANA_RPC_URL || DEFAULT_SOLANA_RPC_URL;
+  'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
+// or
+// export const SOLANA_RPC_URL =
+//   'https://solana-mainnet.g.alchemy.com/v2/<YOUR_KEY>';
 export const connection = new Connection(SOLANA_RPC_URL);
 
 export const BUY_FEE_PERCENTAGE = 0.1;
