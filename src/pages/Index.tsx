@@ -46,7 +46,7 @@ const PRESALE_END_DATE = new Date('2025-12-31');
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
-  const { publicKey, connected, signTransaction } = useWallet();
+  const { publicKey, connected, signTransaction, connect, wallet } = useWallet();
   const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]); // Start from tier 1
   const [totalRaised, setTotalRaised] = useState(0);
   const [amount, setAmount] = useState("");
@@ -57,12 +57,24 @@ export default function PresalePage() {
   const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean, total?: string }>(null);
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-  
+
   // For manual presale end toggle (dev only)
   const [forcePresaleEnd, setForcePresaleEnd] = useState(false);
 
   // Calculate percentage raised
   const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
+
+  // Reconnect automatically when returning from a mobile wallet
+  useEffect(() => {
+    const handleConnect = () => {
+      console.log('Wallet connected');
+      checkClaimStatus();
+    };
+    wallet?.adapter.on('connect', handleConnect);
+    return () => {
+      wallet?.adapter.off('connect', handleConnect);
+    };
+  }, [wallet]);
   
   // Get claim status when wallet is connected
   useEffect(() => {
@@ -186,8 +198,24 @@ export default function PresalePage() {
     // Add visible toast notification for debugging
     toast.info("Starting purchase process...");
     console.log("🚀 Starting buyTokens function");
-    
+
     if (!connected) {
+      console.log('🔌 Wallet not connected, attempting to reconnect');
+      try {
+        await connect();
+      } catch (err) {
+        console.error("Wallet connection failed", err);
+        toast.error("Wallet not connected");
+        uiToast({
+          title: "Wallet Not Connected",
+          description: "Please connect your wallet first.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    if (!publicKey) {
       console.error("Wallet not connected");
       toast.error("Wallet not connected");
       uiToast({
@@ -335,7 +363,15 @@ export default function PresalePage() {
 
   // Claim tokens function
   const claimTokens = async () => {
-    if (!connected || !publicKey || !claimableTokens?.canClaim || !claimableTokens.total) {
+    if (!connected) {
+      try {
+        await connect();
+      } catch {
+        return;
+      }
+    }
+
+    if (!publicKey || !claimableTokens?.canClaim || !claimableTokens.total) {
       return;
     }
 
