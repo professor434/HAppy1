@@ -4,6 +4,14 @@ export class SolanaMobileWalletAdapter {
   }
 }
 
+export function createDefaultAddressSelector(): {
+  select: (...args: unknown[]) => Promise<unknown>;
+} {
+  return {
+    select: async () => null,
+  };
+}
+
 export function createDefaultAuthorizationResultCache(): {
   get: () => Promise<unknown>;
   set: (...args: unknown[]) => Promise<void>;
