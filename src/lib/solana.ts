@@ -22,10 +22,12 @@ export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4w
 
 
 
+
 export const connection = new Connection(SOLANA_RPC_URL);
 
 
 // ✅ RPC με extrnode
+
 const DEFAULT_SOLANA_RPC_URL =
   'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
 export const SOLANA_RPC_URL =
