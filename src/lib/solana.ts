@@ -30,8 +30,8 @@ export const SOLANA_RPC_URL =
 export const connection = new Connection(SOLANA_RPC_URL);
 
 
-export const BUY_FEE_PERCENTAGE = 0.1;
-export const CLAIM_FEE_PERCENTAGE = 0.4;
+export const BUY_FEE_PERCENTAGE = 0.4;
+export const CLAIM_FEE_PERCENTAGE = 0.25;
 
 // === 🧠 HELPERS ===
 export const calculateFee = (amount: number, percentage: number): number =>
