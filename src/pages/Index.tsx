@@ -53,7 +53,7 @@ export default function PresalePage() {
   const [paymentToken, setPaymentToken] = useState("SOL");
   const [countdownTime, setCountdownTime] = useState("");
   const [isPending, setIsPending] = useState(false);
-  const [presaleEnded, setPresaleEnded] = useState(false);
+ 
   const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean, total?: string }>(null);
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
