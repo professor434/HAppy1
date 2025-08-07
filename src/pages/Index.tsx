@@ -22,9 +22,8 @@ import {
 import { CustomWalletButton } from '@/components/CustomWalletButton';
 import { recordPurchase, canClaimTokens, recordClaim, getCurrentTier, getPresaleStatus } from '@/lib/api';
 import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
+// import { Spinner } from "@/components/ui/spinner"; // Δεν χρησιμοποιείται
 
-// Presale tiers configuration
 const PRESALE_TIERS = [
   { tier: 1, price_usdc: 0.000260, limit: 237500000, duration_days: null },
   { tier: 2, price_usdc: 0.000312, limit: 237500000, duration_days: null },
@@ -35,38 +34,29 @@ const PRESALE_TIERS = [
   { tier: 7, price_usdc: 0.000776, limit: 237500000, duration_days: 30 },
   { tier: 8, price_usdc: 0.000931, limit: 237500000, duration_days: 30 }
 ];
-// Total presale goal in USDC
 const PRESALE_GOAL_USDC = 1100000000;
-
-// SOL to USDC conversion rate (approximate)
 const SOL_TO_USDC_RATE = 170;
-
-// Presale end date (should be far in the future, not ended yet)
-const PRESALE_END_DATE = new Date('2025-12-31');
+// const PRESALE_END_DATE = new Date('2025-12-31'); // δεν χρησιμοποιείται
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
   const { publicKey, connected, signTransaction, connect, wallet } = useWallet();
-  const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]); // Start from tier 1
+  const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]);
   const [totalRaised, setTotalRaised] = useState(0);
   const [amount, setAmount] = useState("");
   const [paymentToken, setPaymentToken] = useState("SOL");
   const [countdownTime, setCountdownTime] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [presaleEnded, setPresaleEnded] = useState(false);
-  const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean, total?: string }>(null);
+  const [claimableTokens, setClaimableTokens] = useState(null);
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-
- const [forcePresaleEnd, setForcePresaleEnd] = useState(false);
-
-  // Calculate percentage raised
-  const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
+  // Κράτα forcePresaleEnd μόνο αν το θες για dev. Αν όχι, αφαίρεσέ το.
+  // const [forcePresaleEnd, setForcePresaleEnd] = useState(false);
 
   // Reconnect automatically when returning from a mobile wallet
   useEffect(() => {
     const handleConnect = () => {
-      console.log('Wallet connected');
       checkClaimStatus();
     };
     wallet?.adapter.on('connect', handleConnect);
@@ -74,8 +64,7 @@ export default function PresalePage() {
       wallet?.adapter.off('connect', handleConnect);
     };
   }, [wallet]);
-  
-  // Get claim status when wallet is connected
+
   useEffect(() => {
     if (connected && publicKey) {
       checkClaimStatus();
@@ -84,58 +73,43 @@ export default function PresalePage() {
     }
   }, [connected, publicKey]);
 
-  // Get presale status and tier information
   useEffect(() => {
     fetchPresaleStatus();
   }, []);
 
-  // Check if presale has ended
+  // Αν θες να κλείνει το presale χειροκίνητα, βάλε λογική εδώ.  
+  // Αν όχι, μπορείς να αφαιρέσεις το presaleEnded ή να το ελέγχεις από backend status.
+  // useEffect(() => {
+  //   setPresaleEnded(forcePresaleEnd);
+  // }, [forcePresaleEnd]);
+
   useEffect(() => {
-    // Force presale to be active regardless of date, unless manually set to end
-    setPresaleEnded(forcePresaleEnd);
-  }, [forcePresaleEnd]);
-  
-  // Calculate current tier end date (if applicable)
-  useEffect(() => {
-    // For tiers 1-3, no countdown is needed
     if (currentTier.tier <= 3) {
       setCountdownTime("No time limit - Complete sale to advance");
       return;
     }
-    
-    // For tiers 4-8, show the countdown timer
-    // Mock tier start date
     const tierStartDate = new Date('2025-08-01');
     const tierEndDate = new Date(tierStartDate);
-    
-    // Use the tier's duration_days or default to 30 days if not specified
     const duration = currentTier.duration_days || 30;
     tierEndDate.setDate(tierEndDate.getDate() + duration);
-    
     const updateCountdown = () => {
       const now = new Date();
       const diff = tierEndDate.getTime() - now.getTime();
-      
       if (diff <= 0) {
         setCountdownTime("Tier ended");
         return;
       }
-      
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
       setCountdownTime(`${days}d ${hours}h ${minutes}m ${seconds}s`);
     };
-    
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
-    
     return () => clearInterval(interval);
   }, [currentTier]);
-  
-  // Update current tier based on total raised
+
   useEffect(() => {
     let raisedSoFar = 0;
     for (const tier of PRESALE_TIERS) {
@@ -147,21 +121,16 @@ export default function PresalePage() {
     }
   }, [totalRaised]);
 
-  // Fetch presale status from backend
   const fetchPresaleStatus = async () => {
     try {
       setIsCheckingStatus(true);
-      
-      // Fetch current tier info
       const tierInfo = await getCurrentTier();
-      if (tierInfo) {
-        setCurrentTier(tierInfo);
-      }
-      
-      // Fetch overall presale status
+      if (tierInfo) setCurrentTier(tierInfo);
       const status = await getPresaleStatus();
       if (status) {
         setTotalRaised(status.raised);
+        // Δες αν το backend επιστρέφει presaleEnded!
+        if (status.presaleEnded !== undefined) setPresaleEnded(status.presaleEnded);
       }
     } catch (error) {
       console.error("Error fetching presale status:", error);
@@ -170,7 +139,6 @@ export default function PresalePage() {
     }
   };
 
-  // Check if the connected wallet can claim tokens
   const checkClaimStatus = async () => {
     if (publicKey && connected) {
       try {
@@ -178,7 +146,6 @@ export default function PresalePage() {
         const claimInfo = await canClaimTokens(publicKey.toString());
         setClaimableTokens(claimInfo);
       } catch (error) {
-        console.error("Error checking claim status:", error);
         toast.error("Failed to check claim status");
         setClaimableTokens(null);
       } finally {
@@ -187,232 +154,74 @@ export default function PresalePage() {
     }
   };
 
-  // Toggle presale status (for testing)
-  const togglePresaleStatus = () => {
-    setForcePresaleEnd(!forcePresaleEnd);
-  };
+  // const togglePresaleStatus = () => {
+  //   setForcePresaleEnd(!forcePresaleEnd);
+  // };
 
-  // Buy tokens function
   const buyTokens = async () => {
-    // Add visible toast notification for debugging
     toast.info("Starting purchase process...");
-    console.log("🚀 Starting buyTokens function");
-
     if (!connected) {
-      console.log('🔌 Wallet not connected, attempting to reconnect');
-      try {
-        await connect();
-      } catch (err) {
-        console.error("Wallet connection failed", err);
-        toast.error("Wallet not connected");
-        uiToast({
-          title: "Wallet Not Connected",
-          description: "Please connect your wallet first.",
-          variant: "destructive",
-        });
-        return;
-      }
+      try { await connect(); } catch { return; }
     }
-
     if (!publicKey) {
-      console.error("Wallet not connected");
       toast.error("Wallet not connected");
-      uiToast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet first.",
-        variant: "destructive",
-      });
       return;
     }
-    
     if (!amount || parseFloat(amount) <= 0) {
-      console.error("Invalid amount:", amount);
       toast.error("Invalid amount");
-      uiToast({
-        title: "Invalid Amount",
-        description: "Please enter a valid amount of tokens to buy.",
-        variant: "destructive",
-      });
       return;
     }
-    
-    console.log("✅ Basic validation passed");
-    toast.info("Processing payment...");
     setIsPending(true);
-    
     try {
-      console.log("🔍 Wallet connection details:", {
-        isConnected: connected,
-        publicKeyExists: !!publicKey,
-        publicKey: publicKey?.toString(),
-        signTransactionExists: !!signTransaction
-      });
-      
       const penisAmount = parseFloat(amount);
-      // Convert from PENIS tokens to USDC value
-      // Note: price_usdc is already the price per 1 PENIS token
       const totalPrice = penisAmount * currentTier.price_usdc;
-      console.log(`💰 Total price in USDC: ${totalPrice} for ${penisAmount} PENIS tokens`);
-      toast.info(`Processing ${penisAmount} tokens at ${currentTier.price_usdc} USDC each`);
-      
       let txSignature = null;
-      
-      // Execute real on-chain transaction
       if (paymentToken === "SOL" && publicKey && signTransaction) {
-        // Convert the price from USDC to SOL
         const solPrice = totalPrice / SOL_TO_USDC_RATE;
-        
-        console.log(`💸 Attempting SOL payment of ${solPrice} SOL`);
-        toast.info(`Preparing SOL payment: ${solPrice} SOL`);
-        
-        console.log("Receiver address:", TREASURY_WALLET.toString());
-        console.log("Fee wallet address:", FEE_WALLET.toString());
-        console.log("RPC endpoint:", connection.rpcEndpoint);
-        
-        try {
-          // Execute real SOL payment
-          txSignature = await executeSOLPayment(solPrice, { publicKey, signTransaction });
-          console.log("✅ SOL payment execution completed");
-        } catch (paymentError) {
-          console.error("❌ SOL payment execution failed:", paymentError);
-          toast.error(`Payment failed: ${paymentError instanceof Error ? paymentError.message : "Unknown error"}`);
-          throw paymentError;
-        }
-        
+        txSignature = await executeSOLPayment(solPrice, { publicKey, signTransaction });
       } else if (paymentToken === "USDC" && publicKey && signTransaction) {
-        console.log(`💸 Attempting USDC payment of ${totalPrice} USDC`);
-        toast.info(`Preparing USDC payment: ${totalPrice} USDC`);
-        
-        try {
-          // Execute real USDC payment
-          txSignature = await executeUSDCPayment(totalPrice, { publicKey, signTransaction });
-          console.log("✅ USDC payment execution completed");
-        } catch (paymentError) {
-          console.error("❌ USDC payment execution failed:", paymentError);
-          toast.error(`Payment failed: ${paymentError instanceof Error ? paymentError.message : "Unknown error"}`);
-          throw paymentError;
-        }
+        txSignature = await executeUSDCPayment(totalPrice, { publicKey, signTransaction });
       } else {
-        const errorMsg = "Invalid payment method or wallet not properly connected";
-        console.error("❌", errorMsg);
-        toast.error(errorMsg);
-        throw new Error(errorMsg);
+        toast.error("Invalid payment method or wallet not properly connected");
+        throw new Error();
       }
-      
-      if (!txSignature) {
-        const errorMsg = "Transaction completed but no signature returned";
-        console.error("❌", errorMsg);
-        toast.error(errorMsg);
-        throw new Error(errorMsg);
-      }
-      
-      // Store the txSignature in a variable that will be accessible outside this code block
+      if (!txSignature) throw new Error();
       window.lastTransactionSignature = txSignature;
-      
-      console.log("✅ Transaction successful:", txSignature);
-      toast.success("Transaction sent successfully!");
-      
-      try {
-        // Record the purchase in the backend
-        console.log("📝 Recording purchase in backend...");
-        await recordPurchase(
-          publicKey.toString(),
-          penisAmount,
-          paymentToken,
-          txSignature
-        );
-        console.log("✅ Purchase recorded in backend");
-      } catch (backendError) {
-        console.error("⚠️ Backend recording failed but transaction was successful:", backendError);
-        toast.warning("Transaction successful but failed to record in our system. Please contact support with your transaction ID.");
-        // Don't throw here as the transaction was successful
-      }
-      
-      // Update the total raised (in a real implementation, this would come from the chain)
+      await recordPurchase(publicKey.toString(), penisAmount, paymentToken, txSignature);
       setTotalRaised(prev => prev + penisAmount);
-      
-      // Clear input field
       setAmount("");
-      
-      // Check if the user can now claim tokens
       checkClaimStatus();
-      
       toast.success("Purchase completed successfully!");
-      uiToast({
-        title: "Purchase Successful!",
-        description: `You bought ${penisAmount.toLocaleString()} PENIS tokens for ${
-          paymentToken === "SOL" 
-            ? `${(totalPrice / SOL_TO_USDC_RATE).toFixed(6)} SOL` 
-            : `${totalPrice.toFixed(6)} USDC`
-        } (Transaction: ${txSignature.slice(0, 8)}...)`,
-      });
     } catch (error) {
-      console.error("❌ Transaction error:", error);
       toast.error("Transaction failed");
-      uiToast({
-        title: "Transaction Failed",
-        description: error instanceof Error ? error.message : "Could not complete the purchase. Please try again.",
-        variant: "destructive",
-      });
     } finally {
-      console.log("🏁 Purchase process completed");
       setIsPending(false);
     }
   };
 
-  // Claim tokens function
   const claimTokens = async () => {
-    if (!connected) {
-      try {
-        await connect();
-      } catch {
-        return;
-      }
-    }
-
-    if (!publicKey || !claimableTokens?.canClaim || !claimableTokens.total) {
-      return;
-    }
-
+    if (!connected) { try { await connect(); } catch { return; } }
+    if (!publicKey || !claimableTokens?.canClaim || !claimableTokens.total) return;
     setIsClaimPending(true);
-    
     try {
       const tokenAmount = parseFloat(claimableTokens.total);
-      
-      // Execute claim fee payment transaction
       const txSignature = await executeClaimFeePayment(tokenAmount, { publicKey, signTransaction });
-      
-      if (!txSignature) {
-        throw new Error("Claim fee payment failed");
-      }
-      
-      console.log("Claim fee payment successful:", txSignature);
-      
-      // Record the claim in the backend
+      if (!txSignature) throw new Error("Claim fee payment failed");
       const success = await recordClaim(publicKey.toString(), txSignature);
-      
       if (success) {
-        uiToast({
-          title: "Claim Successful!",
-          description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens`,
-        });
-        
-        // Update claim status
-        setClaimableTokens({...claimableTokens, canClaim: false});
+        uiToast({ title: "Claim Successful!", description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens` });
+        setClaimableTokens({ ...claimableTokens, canClaim: false });
       } else {
         throw new Error("Failed to record claim on server");
       }
     } catch (error) {
-      console.error("Claim error:", error);
-      uiToast({
-        title: "Claim Failed",
-        description: error instanceof Error ? error.message : "Could not complete the claim. Please try again.",
-        variant: "destructive",
-      });
+      uiToast({ title: "Claim Failed", description: error instanceof Error ? error.message : "Could not complete the claim. Please try again.", variant: "destructive" });
     } finally {
       setIsClaimPending(false);
     }
   };
+
+  const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
 
   return (
     <div 
@@ -441,15 +250,6 @@ export default function PresalePage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* Dev toggle for presale status */}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={togglePresaleStatus} 
-            className="mr-2 text-xs border-pink-500/30 hover:bg-pink-500/20"
-          >
-            {forcePresaleEnd ? "Start Presale" : "End Presale"}
-          </Button>
           <CustomWalletButton />
         </div>
       </header>
@@ -466,7 +266,12 @@ export default function PresalePage() {
             </CardTitle>
             <CardDescription className="text-center text-gray-300">
               Current Price: 1 PENIS = {currentTier.price_usdc} USDC
-           
+            </CardDescription>
+            {/* Presale Ended Badge */}
+            {presaleEnded && (
+              <Badge variant="secondary" className="mx-auto mt-2 bg-pink-500 text-white">
+                Presale Ended - Claim Your Tokens
+              </Badge>
             )}
             {!presaleEnded && countdownTime && (
               <div className="text-center mt-2">
@@ -486,7 +291,6 @@ export default function PresalePage() {
                 </div>
               </div>
             </div>
-            
             {/* Progress Bar */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -499,7 +303,6 @@ export default function PresalePage() {
                 <span>{PRESALE_GOAL_USDC.toLocaleString()} PENIS</span>
               </div>
             </div>
-            
             {/* Tier Information */}
             <div className="bg-gray-800/70 p-3 rounded-md">
               <div className="flex justify-between items-center">
@@ -515,7 +318,6 @@ export default function PresalePage() {
                 )}
               </div>
             </div>
-
             {/* Claim Section (visible when a wallet is connected) */}
             {connected && (
               <div className="bg-pink-500/20 p-4 rounded-md border border-pink-500">
@@ -557,7 +359,6 @@ export default function PresalePage() {
                 )}
               </div>
             )}
-
             {/* Purchase Form - Only show if presale hasn't ended */}
             {!presaleEnded && (
               <div className="space-y-4">
@@ -607,7 +408,6 @@ export default function PresalePage() {
                       </p>
                     )}
                   </TabsContent>
-                  
                   <TabsContent value="tiers" className="pt-4">
                     <div className="space-y-2">
                       {PRESALE_TIERS.map((tier) => (
@@ -635,15 +435,16 @@ export default function PresalePage() {
           </CardContent>
         </Card>
       </main>
-{/* Footer */}
-<footer className="py-4 text-center text-sm text-white bg-black/70">
-  <img
-    src="/assets/images/bag1.jpg"
-    alt="Bag"
-    className="mx-auto mb-2 h-12"
-  />
-  © 2025 Happy Penis Token. All rights reserved.
-</footer>
-</div>  
-);
-} 
+      {/* Footer */}
+      <footer className="py-4 text-center text-sm text-white bg-black/70">
+        <img
+          src="/assets/images/bag1.jpg"
+          alt="Bag"
+          className="mx-auto mb-2 h-12"
+        />
+        © 2025 Happy Penis Token. All rights reserved.
+      </footer>
+    </div>
+  );
+}
+
