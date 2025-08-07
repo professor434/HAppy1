@@ -53,12 +53,12 @@ export default function PresalePage() {
   const [paymentToken, setPaymentToken] = useState("SOL");
   const [countdownTime, setCountdownTime] = useState("");
   const [isPending, setIsPending] = useState(false);
- 
+  const [presaleEnded, setPresaleEnded] = useState(false);
   const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean, total?: string }>(null);
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
- 
+ const [forcePresaleEnd, setForcePresaleEnd] = useState(false);
 
   // Calculate percentage raised
   const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
@@ -466,11 +466,7 @@ export default function PresalePage() {
             </CardTitle>
             <CardDescription className="text-center text-gray-300">
               Current Price: 1 PENIS = {currentTier.price_usdc} USDC
-            </CardDescription>
-            {presaleEnded && (
-              <Badge variant="secondary" className="mx-auto mt-2 bg-pink-500 text-white">
-                Presale Ended - Claim Your Tokens
-              </Badge>
+           
             )}
             {!presaleEnded && countdownTime && (
               <div className="text-center mt-2">
