@@ -58,8 +58,7 @@ export default function PresalePage() {
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-  // For manual presale end toggle (dev only)
-  const [forcePresaleEnd, setForcePresaleEnd] = useState(false);
+ 
 
   // Calculate percentage raised
   const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
