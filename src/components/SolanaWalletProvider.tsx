@@ -32,7 +32,7 @@ export const SolanaWalletProvider: FC<SolanaWalletProviderProps> = ({ children }
         appIdentity: {
           name: 'Happy Penis Presale',
           uri: 'https://happypennisofficialpresale.vercel.app',
-          icon: 'https://happypennisofficialpresale.vercel.app/logo192.png',
+          icon: 'https://happypennisofficialpresale.vercel.app/logo.png',
         },
         authorizationResultCache: createDefaultAuthorizationResultCache(),
       }),
