@@ -5,15 +5,19 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Define interfaces for API responses
 interface PurchaseRecord {
+  id: number;
   wallet: string;
   token: string;
   amount: number;
-  total: string;
-  fee: string;
   tier: number;
   transaction_signature: string;
   timestamp: string;
   claimed: boolean;
+  total_paid_usdc: number | null;
+  total_paid_sol: number | null;
+  fee_paid_usdc: number | null;
+  fee_paid_sol: number | null;
+  price_usdc_each: number;
 }
 
 interface TierInfo {
@@ -30,6 +34,7 @@ interface PresaleStatus {
   totalClaims: number;
   spl_address: string;
   fee_wallet: string;
+  presaleEnded?: boolean;
 }
 
 interface ClaimStatus {
@@ -45,23 +50,22 @@ interface ClaimResponse {
  * Record a purchase in the snapshot
  */
 export async function recordPurchase(
-  wallet: string, 
-  amount: number, 
+  wallet: string,
+  amount: number,
   token: string,
-  transaction_signature: string
+  transaction_signature: string,
+  extras?: { total_paid_usdc?: number | null; total_paid_sol?: number | null; fee_paid_usdc?: number | null; fee_paid_sol?: number | null }
 ): Promise<PurchaseRecord | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/buy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wallet, amount, token, transaction_signature })
+      body: JSON.stringify({ wallet, amount, token, transaction_signature, ...extras })
     });
-    
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to record purchase');
     }
-    
     return await response.json();
   } catch (error) {
     console.error('API error:', error);
@@ -78,9 +82,7 @@ export async function recordPurchase(
 export async function getCurrentTier(): Promise<TierInfo | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/tiers`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch tier information');
-    }
+    if (!response.ok) throw new Error('Failed to fetch tier information');
     return await response.json();
   } catch (error) {
     console.error('API error:', error);
@@ -94,9 +96,7 @@ export async function getCurrentTier(): Promise<TierInfo | null> {
 export async function canClaimTokens(wallet: string): Promise<ClaimStatus> {
   try {
     const response = await fetch(`${API_BASE_URL}/can-claim/${wallet}`);
-    if (!response.ok) {
-      throw new Error('Failed to check claim status');
-    }
+    if (!response.ok) throw new Error('Failed to check claim status');
     return await response.json();
   } catch (error) {
     console.error('API error:', error);
@@ -114,12 +114,10 @@ export async function recordClaim(wallet: string, transaction_signature: string)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ wallet, transaction_signature })
     });
-    
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to record claim');
     }
-    
     return (await response.json() as ClaimResponse).success;
   } catch (error) {
     console.error('API error:', error);
@@ -136,9 +134,7 @@ export async function recordClaim(wallet: string, transaction_signature: string)
 export async function getPresaleStatus(): Promise<PresaleStatus | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/status`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch presale status');
-    }
+    if (!response.ok) throw new Error('Failed to fetch presale status');
     return await response.json();
   } catch (error) {
     console.error('API error:', error);
@@ -152,9 +148,7 @@ export async function getPresaleStatus(): Promise<PresaleStatus | null> {
 export async function getSnapshot(): Promise<PurchaseRecord[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/snapshot`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch snapshot data');
-    }
+    if (!response.ok) throw new Error('Failed to fetch snapshot data');
     return await response.json();
   } catch (error) {
     console.error('API error:', error);
