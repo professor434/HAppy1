@@ -18,7 +18,7 @@ import {
   BUY_FEE_PERCENTAGE,
 } from '@/lib/solana';
 import { CustomWalletButton } from '@/components/CustomWalletButton';
-import { recordPurchase, canClaimTokens, recordClaim, getCurrentTier, getPresaleStatus } from '@/lib/api';
+import { recordPurchase, canClaimTokensBulk, recordClaim, getCurrentTier, getPresaleStatus } from '@/lib/api';
 import { Badge } from "@/components/ui/badge";
 
 type PaymentToken = "SOL" | "USDC";
@@ -137,7 +137,7 @@ export default function PresalePage() {
     if (!publicKey || !connected) return;
     try {
       setIsCheckingStatus(true);
-      const claimInfo = await canClaimTokens(publicKey.toString());
+      const [claimInfo] = await canClaimTokensBulk([publicKey.toString()]);
       setClaimableTokens(claimInfo);
     } catch (e) {
       toast.error("Failed to check claim status");
@@ -196,7 +196,7 @@ export default function PresalePage() {
       }
 
       if (!txSignature) throw new Error("No transaction signature returned");
-      (window as any).lastTransactionSignature = txSignature;
+        (window as typeof window & { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
       await recordPurchase(
         publicKey.toString(),
@@ -236,12 +236,13 @@ export default function PresalePage() {
       if (!success) throw new Error("Failed to record claim on server");
       uiToast({ title: "Claim Successful!", description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens` });
       setClaimableTokens({ ...claimableTokens, canClaim: false });
-    } catch (error: any) {
-      uiToast({ title: "Claim Failed", description: error?.message || "Could not complete the claim.", variant: "destructive" });
-    } finally {
-      setIsClaimPending(false);
-    }
-  };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : undefined;
+        uiToast({ title: "Claim Failed", description: message || "Could not complete the claim.", variant: "destructive" });
+      } finally {
+        setIsClaimPending(false);
+      }
+    };
 
   const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
 
