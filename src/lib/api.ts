@@ -42,6 +42,10 @@ interface ClaimStatus {
   total?: string;
 }
 
+interface WalletClaimStatus extends ClaimStatus {
+  wallet: string;
+}
+
 interface ClaimResponse {
   success: boolean;
 }
@@ -91,17 +95,29 @@ export async function getCurrentTier(): Promise<TierInfo | null> {
 }
 
 /**
- * Check if a wallet can claim tokens
+ * Check claimable tokens for multiple wallets
  */
-export async function canClaimTokens(wallet: string): Promise<ClaimStatus> {
+export async function canClaimTokensBulk(wallets: string[]): Promise<WalletClaimStatus[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/can-claim/${wallet}`);
+    const response = await fetch(`${API_BASE_URL}/can-claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wallets })
+    });
     if (!response.ok) throw new Error('Failed to check claim status');
     return await response.json();
   } catch (error) {
     console.error('API error:', error);
-    return { canClaim: false };
+    return wallets.map(wallet => ({ wallet, canClaim: false }));
   }
+}
+
+/**
+ * Check if a wallet can claim tokens
+ */
+export async function canClaimTokens(wallet: string): Promise<ClaimStatus> {
+  const [result] = await canClaimTokensBulk([wallet]);
+  return result ?? { canClaim: false };
 }
 
 /**

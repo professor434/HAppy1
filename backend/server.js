@@ -161,7 +161,7 @@ app.post('/buy', async (req, res) => {
   res.json(purchase);
 });
 
-// can-claim
+// can-claim (single wallet - retained for compatibility)
 app.get('/can-claim/:wallet', (req, res) => {
   const { wallet } = req.params;
   const userPurchases = purchases.filter(p => p.wallet === wallet);
@@ -171,6 +171,25 @@ app.get('/can-claim/:wallet', (req, res) => {
     canClaim: totalTokens > 0 && !anyClaimed,
     total: totalTokens > 0 ? String(totalTokens) : undefined,
   });
+});
+
+// can-claim bulk
+app.post('/can-claim', (req, res) => {
+  const wallets = Array.isArray(req.body) ? req.body : req.body?.wallets;
+  if (!Array.isArray(wallets)) {
+    return res.status(400).json({ error: 'wallets must be an array' });
+  }
+  const results = wallets.map(wallet => {
+    const userPurchases = purchases.filter(p => p.wallet === wallet);
+    const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const anyClaimed = userPurchases.some(p => p.claimed);
+    return {
+      wallet,
+      canClaim: totalTokens > 0 && !anyClaimed,
+      total: totalTokens > 0 ? String(totalTokens) : undefined,
+    };
+  });
+  res.json(results);
 });
 
 // claim (single-claim ανά wallet)
