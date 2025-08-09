@@ -59,3 +59,32 @@ pnpm run dev
 ```shell
 pnpm run build
 ```
+
+## Backend CORS configuration
+
+The backend reads allowed origins from the `CORS_ORIGIN` environment variable.
+Provide a comma‑separated list of origins or wildcard patterns. The character
+`*` can be used to match any subdomain, and a lone `*` allows all origins. If
+omitted, the server defaults to `http://localhost:5173` for development.
+
+```bash
+CORS_ORIGIN="https://*.example.com,http://localhost:5173"
+node backend/server.js
+```
+
+For this project the variable is typically set to:
+
+```bash
+CORS_ORIGIN="https://happypennisofficialpresale.vercel.app,https://happypennisofficialpresale-e1syb8uhk-proffesorsafas-projects.vercel.app,http://localhost:5173"
+```
+
+### Mobile/iOS deployments
+
+When running inside a mobile WebView (e.g. iOS with Capacitor), include the
+scheme used by the app:
+
+```bash
+CORS_ORIGIN="capacitor://localhost,https://*.example.com"
+```
+
+This permits requests from the mobile application alongside web domains.
