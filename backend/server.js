@@ -16,35 +16,13 @@ const SPL_MINT_ADDRESS = 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs';
 const TREASURY_WALLET  = '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 const FEE_WALLET       = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 
-// CORS configuration: read allowed origins from `CORS_ORIGIN`.
-// Defaults to Vite's dev server (`http://localhost:5173`).
-const originPatterns = (process.env.CORS_ORIGIN ||
-  'http://localhost:5173'
-).split(',').map(o => o.trim()).filter(Boolean);
+// CORS (πρόσθεσα presale-happypenis.com και localhost)
+const allowedOrigins = (process.env.CORS_ORIGIN || 
+  'https://happypennisofficialpresale.vercel.app,https://presale-happypenis.com,http://localhost:3000'
+).split(',').map(o => o.trim());
 
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|\\]/g, '\\$&');
-}
-
-const originMatchers = originPatterns.map(p =>
-  p === '*'
-    ? /.*/
-    : new RegExp('^' + escapeRegex(p).replace(/\\\*/g, '.*') + '$')
-);
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || originMatchers.some(re => re.test(origin))) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.options('*', cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
 // In-memory + persistent store
