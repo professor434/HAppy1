@@ -52,21 +52,30 @@ export default function PresalePage() {
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-  // Auto re-check after wallet connect (mobile deep link κ.λπ.)
+  // Reconnect automatically when returning from a mobile wallet
   useEffect(() => {
-    const handleConnect = () => { checkClaimStatus(); };
+    const handleConnect = () => {
+      checkClaimStatus();
+    };
     wallet?.adapter.on('connect', handleConnect);
-    return () => { wallet?.adapter.off('connect', handleConnect); };
+    return () => {
+      wallet?.adapter.off('connect', handleConnect);
+    };
   }, [wallet]);
 
   useEffect(() => {
-    if (connected && publicKey) checkClaimStatus();
-    else setClaimableTokens(null);
+    if (connected && publicKey) {
+      checkClaimStatus();
+    } else {
+      setClaimableTokens(null);
+    }
   }, [connected, publicKey]);
 
-  useEffect(() => { fetchPresaleStatus(); }, []);
+  useEffect(() => {
+    fetchPresaleStatus();
+  }, []);
 
-  // Countdown για tiers 4-8
+  // Countdown for tiers 4-8
   useEffect(() => {
     if (currentTier.tier <= 3) {
       setCountdownTime("No time limit - Complete sale to advance");
@@ -78,7 +87,10 @@ export default function PresalePage() {
     tierEndDate.setDate(tierEndDate.getDate() + duration);
     const update = () => {
       const diff = tierEndDate.getTime() - Date.now();
-      if (diff <= 0) return setCountdownTime("Tier ended");
+      if (diff <= 0) {
+        setCountdownTime("Tier ended");
+        return;
+      }
       const d = Math.floor(diff / 86400000);
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -86,15 +98,18 @@ export default function PresalePage() {
       setCountdownTime(`${d}d ${h}h ${m}m ${s}s`);
     };
     update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
   }, [currentTier]);
 
-  // Τοπικό fallback για tier από totalRaised
+  // Local fallback for tier based on totalRaised
   useEffect(() => {
     let raisedSoFar = 0;
     for (const tier of PRESALE_TIERS) {
-      if (raisedSoFar + tier.limit > totalRaised) { setCurrentTier(tier); break; }
+      if (raisedSoFar + tier.limit > totalRaised) {
+        setCurrentTier(tier);
+        break;
+      }
       raisedSoFar += tier.limit;
     }
   }, [totalRaised]);
@@ -107,7 +122,9 @@ export default function PresalePage() {
       const status = await getPresaleStatus();
       if (status) {
         setTotalRaised(status.raised);
-        if (typeof status.presaleEnded === 'boolean') setPresaleEnded(status.presaleEnded);
+        if (typeof status.presaleEnded === 'boolean') {
+          setPresaleEnded(status.presaleEnded);
+        }
       }
     } catch (e) {
       console.error("status error:", e);
@@ -132,9 +149,21 @@ export default function PresalePage() {
 
   const buyTokens = async () => {
     toast.info("Starting purchase process...");
-    if (!connected) { try { await connect(); } catch { return; } }
-    if (!publicKey) { toast.error("Wallet not connected"); return; }
-    if (!amount || parseFloat(amount) <= 0) { toast.error("Invalid amount"); return; }
+    if (!connected) {
+      try {
+        await connect();
+      } catch {
+        return;
+      }
+    }
+    if (!publicKey) {
+      toast.error("Wallet not connected");
+      return;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error("Invalid amount");
+      return;
+    }
 
     setIsPending(true);
     try {
@@ -148,23 +177,19 @@ export default function PresalePage() {
       let fee_paid_usdc: number | null = null;
       let fee_paid_sol: number | null = null;
 
-      if (paymentToken === "SOL" && signTransaction) {
-        const solPrice = totalPriceUSDC / SOL_TO_USDC_RATE;
-        txSignature = await executeSOLPayment(solPrice, { publicKey, signTransaction });
-
-        total_paid_usdc = +totalPriceUSDC.toFixed(6);
-        total_paid_sol  = +solPrice.toFixed(9);
-        fee_paid_usdc   = +(totalPriceUSDC * feePct).toFixed(6);
-        fee_paid_sol    = +(solPrice * feePct).toFixed(9);
-
-      } else if (paymentToken === "USDC" && signTransaction) {
+      if (paymentToken === "SOL" && publicKey && signTransaction) {
+        const solAmount = totalPriceUSDC / SOL_TO_USDC_RATE;
+        txSignature = await executeSOLPayment(solAmount, { publicKey, signTransaction });
+        total_paid_usdc = null;
+        total_paid_sol = +solAmount.toFixed(6);
+        fee_paid_usdc = null;
+        fee_paid_sol = +(solAmount * feePct).toFixed(6);
+      } else if (paymentToken === "USDC" && publicKey && signTransaction) {
         txSignature = await executeUSDCPayment(totalPriceUSDC, { publicKey, signTransaction });
-
         total_paid_usdc = +totalPriceUSDC.toFixed(6);
-        total_paid_sol  = null;
-        fee_paid_usdc   = +(totalPriceUSDC * feePct).toFixed(6);
-        fee_paid_sol    = null;
-
+        total_paid_sol = null;
+        fee_paid_usdc = +(totalPriceUSDC * feePct).toFixed(6);
+        fee_paid_sol = null;
       } else {
         toast.error("Invalid payment method or wallet not properly connected");
         throw new Error("payment method");
@@ -194,7 +219,13 @@ export default function PresalePage() {
   };
 
   const claimTokens = async () => {
-    if (!connected) { try { await connect(); } catch { return; } }
+    if (!connected) {
+      try {
+        await connect();
+      } catch {
+        return;
+      }
+    }
     if (!publicKey || !claimableTokens?.canClaim || !claimableTokens.total) return;
     setIsClaimPending(true);
     try {
@@ -394,7 +425,9 @@ export default function PresalePage() {
                       {PRESALE_TIERS.map((tier) => (
                         <div
                           key={tier.tier}
-                          className={`p-3 rounded-md border ${currentTier.tier === tier.tier ? 'bg-pink-500/20 border-pink-500' : 'bg-gray-800/50 border-gray-700'}`}
+                          className={`p-3 rounded-md border ${
+                            currentTier.tier === tier.tier ? 'bg-pink-500/20 border-pink-500' : 'bg-gray-800/50 border-gray-700'
+                          }`}
                         >
                           <div className="flex justify-between">
                             <h4 className="font-medium">Tier {tier.tier}</h4>
@@ -419,6 +452,13 @@ export default function PresalePage() {
         <img src="/assets/images/bag1.jpg" alt="Bag" className="mx-auto mb-2 h-12" />
         © 2025 Happy Penis Token. All rights reserved.
       </footer>
+
+      {/* Global style override for wallet dropdown z-index */}
+      <style jsx global>{`
+        .wallet-adapter-dropdown-list {
+          z-index: 9999 !important;
+        }
+      `}</style>
     </div>
   );
 }
