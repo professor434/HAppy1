@@ -15,15 +15,15 @@ import {
   executeClaimFeePayment,
   formatPublicKey,
   SPL_MINT_ADDRESS,
-  TREASURY_WALLET,
-  FEE_WALLET,
-  connection
+  BUY_FEE_PERCENTAGE,
 } from '@/lib/solana';
 import { CustomWalletButton } from '@/components/CustomWalletButton';
 import { recordPurchase, canClaimTokens, recordClaim, getCurrentTier, getPresaleStatus } from '@/lib/api';
 import { Badge } from "@/components/ui/badge";
-// import { Spinner } from "@/components/ui/spinner"; // Δεν χρησιμοποιείται
 
+type PaymentToken = "SOL" | "USDC";
+
+// Presale tiers (fallback local; το backend μπορεί να τα επιστρέφει δυναμικά)
 const PRESALE_TIERS = [
   { tier: 1, price_usdc: 0.000260, limit: 237500000, duration_days: null },
   { tier: 2, price_usdc: 0.000312, limit: 237500000, duration_days: null },
@@ -34,9 +34,9 @@ const PRESALE_TIERS = [
   { tier: 7, price_usdc: 0.000776, limit: 237500000, duration_days: 30 },
   { tier: 8, price_usdc: 0.000931, limit: 237500000, duration_days: 30 }
 ];
+
 const PRESALE_GOAL_USDC = 1100000000;
 const SOL_TO_USDC_RATE = 170;
-// const PRESALE_END_DATE = new Date('2025-12-31'); // δεν χρησιμοποιείται
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
@@ -44,45 +44,29 @@ export default function PresalePage() {
   const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]);
   const [totalRaised, setTotalRaised] = useState(0);
   const [amount, setAmount] = useState("");
-  const [paymentToken, setPaymentToken] = useState("SOL");
+  const [paymentToken, setPaymentToken] = useState<PaymentToken>("SOL");
   const [countdownTime, setCountdownTime] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [presaleEnded, setPresaleEnded] = useState(false);
-  const [claimableTokens, setClaimableTokens] = useState(null);
+  const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean; total?: string }>(null);
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-  // Κράτα forcePresaleEnd μόνο αν το θες για dev. Αν όχι, αφαίρεσέ το.
-  // const [forcePresaleEnd, setForcePresaleEnd] = useState(false);
 
-  // Reconnect automatically when returning from a mobile wallet
+  // Auto re-check after wallet connect (mobile deep link κ.λπ.)
   useEffect(() => {
-    const handleConnect = () => {
-      checkClaimStatus();
-    };
+    const handleConnect = () => { checkClaimStatus(); };
     wallet?.adapter.on('connect', handleConnect);
-    return () => {
-      wallet?.adapter.off('connect', handleConnect);
-    };
+    return () => { wallet?.adapter.off('connect', handleConnect); };
   }, [wallet]);
 
   useEffect(() => {
-    if (connected && publicKey) {
-      checkClaimStatus();
-    } else {
-      setClaimableTokens(null);
-    }
+    if (connected && publicKey) checkClaimStatus();
+    else setClaimableTokens(null);
   }, [connected, publicKey]);
 
-  useEffect(() => {
-    fetchPresaleStatus();
-  }, []);
+  useEffect(() => { fetchPresaleStatus(); }, []);
 
-  // Αν θες να κλείνει το presale χειροκίνητα, βάλε λογική εδώ.  
-  // Αν όχι, μπορείς να αφαιρέσεις το presaleEnded ή να το ελέγχεις από backend status.
-  // useEffect(() => {
-  //   setPresaleEnded(forcePresaleEnd);
-  // }, [forcePresaleEnd]);
-
+  // Countdown για tiers 4-8
   useEffect(() => {
     if (currentTier.tier <= 3) {
       setCountdownTime("No time limit - Complete sale to advance");
@@ -92,31 +76,25 @@ export default function PresalePage() {
     const tierEndDate = new Date(tierStartDate);
     const duration = currentTier.duration_days || 30;
     tierEndDate.setDate(tierEndDate.getDate() + duration);
-    const updateCountdown = () => {
-      const now = new Date();
-      const diff = tierEndDate.getTime() - now.getTime();
-      if (diff <= 0) {
-        setCountdownTime("Tier ended");
-        return;
-      }
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      setCountdownTime(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+    const update = () => {
+      const diff = tierEndDate.getTime() - Date.now();
+      if (diff <= 0) return setCountdownTime("Tier ended");
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdownTime(`${d}d ${h}h ${m}m ${s}s`);
     };
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
   }, [currentTier]);
 
+  // Τοπικό fallback για tier από totalRaised
   useEffect(() => {
     let raisedSoFar = 0;
     for (const tier of PRESALE_TIERS) {
-      if (raisedSoFar + tier.limit > totalRaised) {
-        setCurrentTier(tier);
-        break;
-      }
+      if (raisedSoFar + tier.limit > totalRaised) { setCurrentTier(tier); break; }
       raisedSoFar += tier.limit;
     }
   }, [totalRaised]);
@@ -129,70 +107,86 @@ export default function PresalePage() {
       const status = await getPresaleStatus();
       if (status) {
         setTotalRaised(status.raised);
-        // Δες αν το backend επιστρέφει presaleEnded!
-        if (status.presaleEnded !== undefined) setPresaleEnded(status.presaleEnded);
+        if (typeof status.presaleEnded === 'boolean') setPresaleEnded(status.presaleEnded);
       }
-    } catch (error) {
-      console.error("Error fetching presale status:", error);
+    } catch (e) {
+      console.error("status error:", e);
     } finally {
       setIsCheckingStatus(false);
     }
   };
 
   const checkClaimStatus = async () => {
-    if (publicKey && connected) {
-      try {
-        setIsCheckingStatus(true);
-        const claimInfo = await canClaimTokens(publicKey.toString());
-        setClaimableTokens(claimInfo);
-      } catch (error) {
-        toast.error("Failed to check claim status");
-        setClaimableTokens(null);
-      } finally {
-        setIsCheckingStatus(false);
-      }
+    if (!publicKey || !connected) return;
+    try {
+      setIsCheckingStatus(true);
+      const claimInfo = await canClaimTokens(publicKey.toString());
+      setClaimableTokens(claimInfo);
+    } catch (e) {
+      toast.error("Failed to check claim status");
+      setClaimableTokens(null);
+    } finally {
+      setIsCheckingStatus(false);
     }
   };
 
-  // const togglePresaleStatus = () => {
-  //   setForcePresaleEnd(!forcePresaleEnd);
-  // };
-
   const buyTokens = async () => {
     toast.info("Starting purchase process...");
-    if (!connected) {
-      try { await connect(); } catch { return; }
-    }
-    if (!publicKey) {
-      toast.error("Wallet not connected");
-      return;
-    }
-    if (!amount || parseFloat(amount) <= 0) {
-      toast.error("Invalid amount");
-      return;
-    }
+    if (!connected) { try { await connect(); } catch { return; } }
+    if (!publicKey) { toast.error("Wallet not connected"); return; }
+    if (!amount || parseFloat(amount) <= 0) { toast.error("Invalid amount"); return; }
+
     setIsPending(true);
     try {
       const penisAmount = parseFloat(amount);
-      const totalPrice = penisAmount * currentTier.price_usdc;
-      let txSignature = null;
-      if (paymentToken === "SOL" && publicKey && signTransaction) {
-        const solPrice = totalPrice / SOL_TO_USDC_RATE;
+      const totalPriceUSDC = penisAmount * currentTier.price_usdc;
+      const feePct = BUY_FEE_PERCENTAGE / 100;
+
+      let txSignature: string | null = null;
+      let total_paid_usdc: number | null = null;
+      let total_paid_sol: number | null = null;
+      let fee_paid_usdc: number | null = null;
+      let fee_paid_sol: number | null = null;
+
+      if (paymentToken === "SOL" && signTransaction) {
+        const solPrice = totalPriceUSDC / SOL_TO_USDC_RATE;
         txSignature = await executeSOLPayment(solPrice, { publicKey, signTransaction });
-      } else if (paymentToken === "USDC" && publicKey && signTransaction) {
-        txSignature = await executeUSDCPayment(totalPrice, { publicKey, signTransaction });
+
+        total_paid_usdc = +totalPriceUSDC.toFixed(6);
+        total_paid_sol  = +solPrice.toFixed(9);
+        fee_paid_usdc   = +(totalPriceUSDC * feePct).toFixed(6);
+        fee_paid_sol    = +(solPrice * feePct).toFixed(9);
+
+      } else if (paymentToken === "USDC" && signTransaction) {
+        txSignature = await executeUSDCPayment(totalPriceUSDC, { publicKey, signTransaction });
+
+        total_paid_usdc = +totalPriceUSDC.toFixed(6);
+        total_paid_sol  = null;
+        fee_paid_usdc   = +(totalPriceUSDC * feePct).toFixed(6);
+        fee_paid_sol    = null;
+
       } else {
         toast.error("Invalid payment method or wallet not properly connected");
-        throw new Error();
+        throw new Error("payment method");
       }
-      if (!txSignature) throw new Error();
-      window.lastTransactionSignature = txSignature;
-      await recordPurchase(publicKey.toString(), penisAmount, paymentToken, txSignature);
+
+      if (!txSignature) throw new Error("No transaction signature returned");
+      (window as any).lastTransactionSignature = txSignature;
+
+      await recordPurchase(
+        publicKey.toString(),
+        penisAmount,
+        paymentToken,
+        txSignature,
+        { total_paid_usdc, total_paid_sol, fee_paid_usdc, fee_paid_sol }
+      );
+
       setTotalRaised(prev => prev + penisAmount);
       setAmount("");
       checkClaimStatus();
       toast.success("Purchase completed successfully!");
     } catch (error) {
+      console.error(error);
       toast.error("Transaction failed");
     } finally {
       setIsPending(false);
@@ -208,14 +202,11 @@ export default function PresalePage() {
       const txSignature = await executeClaimFeePayment(tokenAmount, { publicKey, signTransaction });
       if (!txSignature) throw new Error("Claim fee payment failed");
       const success = await recordClaim(publicKey.toString(), txSignature);
-      if (success) {
-        uiToast({ title: "Claim Successful!", description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens` });
-        setClaimableTokens({ ...claimableTokens, canClaim: false });
-      } else {
-        throw new Error("Failed to record claim on server");
-      }
-    } catch (error) {
-      uiToast({ title: "Claim Failed", description: error instanceof Error ? error.message : "Could not complete the claim. Please try again.", variant: "destructive" });
+      if (!success) throw new Error("Failed to record claim on server");
+      uiToast({ title: "Claim Successful!", description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens` });
+      setClaimableTokens({ ...claimableTokens, canClaim: false });
+    } catch (error: any) {
+      uiToast({ title: "Claim Failed", description: error?.message || "Could not complete the claim.", variant: "destructive" });
     } finally {
       setIsClaimPending(false);
     }
@@ -241,7 +232,7 @@ export default function PresalePage() {
         <div className="h-10 w-10 rounded-full bg-blue-400 flex items-center justify-center text-white">TW</div>
         <div className="h-10 w-10 rounded-full bg-sky-500 flex items-center justify-center text-white">TG</div>
       </div>
-      {/* Header */}
+
       <header className="w-full px-4 py-6 flex justify-between items-center bg-black/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <img src="/assets/images/logo.png" alt="Happy Penis Token" className="h-16 w-16" />
@@ -254,20 +245,16 @@ export default function PresalePage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-grow flex items-center justify-center p-4">
         <Card className="w-full max-w-xl bg-gray-900/80 border-pink-500/30 backdrop-blur">
           <CardHeader>
             <div className="flex justify-center mb-2">
               <img src="/assets/images/logo.png" alt="Happy Penis Logo" className="h-20 w-20" />
             </div>
-            <CardTitle className="text-2xl text-center">
-              Happy Penis Token Presale
-            </CardTitle>
+            <CardTitle className="text-2xl text-center">Happy Penis Token Presale</CardTitle>
             <CardDescription className="text-center text-gray-300">
               Current Price: 1 PENIS = {currentTier.price_usdc} USDC
             </CardDescription>
-            {/* Presale Ended Badge */}
             {presaleEnded && (
               <Badge variant="secondary" className="mx-auto mt-2 bg-pink-500 text-white">
                 Presale Ended - Claim Your Tokens
@@ -280,8 +267,8 @@ export default function PresalePage() {
               </div>
             )}
           </CardHeader>
+
           <CardContent className="space-y-6">
-            {/* Wallet Info Section */}
             <div className="bg-gray-800/70 p-3 rounded-md text-xs">
               <div className="mb-2 font-medium text-pink-300">Project Details:</div>
               <div className="grid grid-cols-1 gap-2">
@@ -291,7 +278,7 @@ export default function PresalePage() {
                 </div>
               </div>
             </div>
-            {/* Progress Bar */}
+
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Progress</span>
@@ -303,7 +290,7 @@ export default function PresalePage() {
                 <span>{PRESALE_GOAL_USDC.toLocaleString()} PENIS</span>
               </div>
             </div>
-            {/* Tier Information */}
+
             <div className="bg-gray-800/70 p-3 rounded-md">
               <div className="flex justify-between items-center">
                 <div>
@@ -318,7 +305,7 @@ export default function PresalePage() {
                 )}
               </div>
             </div>
-            {/* Claim Section (visible when a wallet is connected) */}
+
             {connected && (
               <div className="bg-pink-500/20 p-4 rounded-md border border-pink-500">
                 <h3 className="font-medium text-center mb-2">
@@ -329,9 +316,7 @@ export default function PresalePage() {
                     <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-pink-500"></div>
                   </div>
                 ) : claimableTokens === null ? (
-                  <p className="text-sm text-center">
-                    Unable to check claim status
-                  </p>
+                  <p className="text-sm text-center">Unable to check claim status</p>
                 ) : (
                   <>
                     {claimableTokens.total !== undefined && (
@@ -359,7 +344,7 @@ export default function PresalePage() {
                 )}
               </div>
             )}
-            {/* Purchase Form - Only show if presale hasn't ended */}
+
             {!presaleEnded && (
               <div className="space-y-4">
                 <Tabs defaultValue="buy" className="w-full">
@@ -382,10 +367,7 @@ export default function PresalePage() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="token">Payment Token</Label>
-                      <Select 
-                        value={paymentToken} 
-                        onValueChange={setPaymentToken}
-                      >
+                      <Select value={paymentToken} onValueChange={(v: PaymentToken) => setPaymentToken(v)}>
                         <SelectTrigger className="bg-gray-800/50">
                           <SelectValue placeholder="Select token" />
                         </SelectTrigger>
@@ -395,24 +377,23 @@ export default function PresalePage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button 
-                      onClick={buyTokens} 
+                    <Button
+                      onClick={buyTokens}
                       disabled={!connected || isPending || !amount}
                       className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                     >
                       {isPending ? "Processing..." : "Buy Now"}
                     </Button>
                     {!connected && (
-                      <p className="text-center text-sm text-gray-400">
-                        Connect your wallet to buy tokens
-                      </p>
+                      <p className="text-center text-sm text-gray-400">Connect your wallet to buy tokens</p>
                     )}
                   </TabsContent>
+
                   <TabsContent value="tiers" className="pt-4">
                     <div className="space-y-2">
                       {PRESALE_TIERS.map((tier) => (
-                        <div 
-                          key={tier.tier} 
+                        <div
+                          key={tier.tier}
                           className={`p-3 rounded-md border ${currentTier.tier === tier.tier ? 'bg-pink-500/20 border-pink-500' : 'bg-gray-800/50 border-gray-700'}`}
                         >
                           <div className="flex justify-between">
@@ -421,9 +402,7 @@ export default function PresalePage() {
                           </div>
                           <div className="text-xs text-gray-400 mt-1">
                             <span>Limit: {tier.limit.toLocaleString()} PENIS</span>
-                            {tier.duration_days && (
-                              <span className="ml-2">Duration: {tier.duration_days} days</span>
-                            )}
+                            {tier.duration_days && <span className="ml-2">Duration: {tier.duration_days} days</span>}
                           </div>
                         </div>
                       ))}
@@ -435,16 +414,11 @@ export default function PresalePage() {
           </CardContent>
         </Card>
       </main>
-      {/* Footer */}
+
       <footer className="py-4 text-center text-sm text-white bg-black/70">
-        <img
-          src="/assets/images/bag1.jpg"
-          alt="Bag"
-          className="mx-auto mb-2 h-12"
-        />
+        <img src="/assets/images/bag1.jpg" alt="Bag" className="mx-auto mb-2 h-12" />
         © 2025 Happy Penis Token. All rights reserved.
       </footer>
     </div>
   );
 }
-
