@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +40,7 @@ const SOL_TO_USDC_RATE = 170;
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
-  const { publicKey, connected, signTransaction, connect, wallet } = useWallet();
+  const { publicKey, connected, signTransaction, connect } = useWallet();
   const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]);
   const [totalRaised, setTotalRaised] = useState(0);
   const [amount, setAmount] = useState("");
@@ -52,22 +52,18 @@ export default function PresalePage() {
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-  // Reconnect automatically when returning from a mobile wallet
-  useEffect(() => {
-    const handleConnect = () => {
-      checkClaimStatus();
-    };
-    wallet?.adapter.on('connect', handleConnect);
-    return () => {
-      wallet?.adapter.off('connect', handleConnect);
-    };
-  }, [wallet]);
+  const lastWallet = useRef<string | null>(null);
 
   useEffect(() => {
     if (connected && publicKey) {
-      checkClaimStatus();
+      const key = publicKey.toString();
+      if (lastWallet.current !== key) {
+        lastWallet.current = key;
+        checkClaimStatus();
+      }
     } else {
       setClaimableTokens(null);
+      lastWallet.current = null;
     }
   }, [connected, publicKey]);
 
