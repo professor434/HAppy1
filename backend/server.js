@@ -175,12 +175,17 @@ app.get('/can-claim/:wallet', (req, res) => {
 
 // can-claim bulk
 app.post('/can-claim', (req, res) => {
+  console.log('📦 /can-claim raw body:', req.body);
   const wallets = Array.isArray(req.body) ? req.body : req.body?.wallets;
   if (!Array.isArray(wallets)) {
+    console.warn('⚠️  /can-claim invalid payload:', req.body);
     return res.status(400).json({ error: 'wallets must be an array' });
   }
   const results = wallets.map(wallet => {
     const userPurchases = purchases.filter(p => p.wallet === wallet);
+    if (userPurchases.length === 0) {
+      console.debug(`🔍 /can-claim checked wallet with no purchases: ${wallet}`);
+    }
     const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
     const anyClaimed = userPurchases.some(p => p.claimed);
     return {
