@@ -4,67 +4,55 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Διάφορες αρχικοποιήσεις για ES modules
+// ESM boilerplate
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 8080; // τρέχουμε στη θύρα 8080
+const PORT = process.env.PORT || 8080;
 
-// Σταθερές για τα wallets/tokens (όπως πριν)
+// Wallets / constants
 const SPL_MINT_ADDRESS = 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs';
 const TREASURY_WALLET  = '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 const FEE_WALLET       = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 
-// CORS: επιτρέπουμε συγκεκριμένα origins από μεταβλητή ή default στο Vercel site
-const allowedOrigins = (process.env.CORS_ORIGIN || 'https://happypennisofficialpresale.vercel.app')
-  .split(',')
-  .map(origin => origin.trim());
-const corsOptions = { origin: allowedOrigins, credentials: true };
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// CORS (πρόσθεσα presale-happypenis.com και localhost)
+const allowedOrigins = (process.env.CORS_ORIGIN || 
+  'https://happypennisofficialpresale.vercel.app,https://presale-happypenis.com,http://localhost:3000'
+).split(',').map(o => o.trim());
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.options('*', cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
-// In-memory store με επίμονη αποθήκευση
+// In-memory + persistent store
 let purchases = [];
 let claims    = [];
 
-// Διαδρομές για τα αρχεία δεδομένων - αποθήκευση στο project data folder
 const DATA_DIR       = path.join(__dirname, '..', 'data');
 const PURCHASES_FILE = path.join(DATA_DIR, 'purchases.json');
 const CLAIMS_FILE    = path.join(DATA_DIR, 'claims.json');
 
-// Βοηθητικές συναρτήσεις για δημιουργία φακέλου /data, φόρτωση και αποθήκευση
 async function ensureDataDir() {
   await fs.mkdir(DATA_DIR, { recursive: true }).catch(() => {});
 }
-
 async function loadData() {
-  try {
-    purchases = JSON.parse(await fs.readFile(PURCHASES_FILE, 'utf8'));
-  } catch {
-    purchases = [];
-  }
-  try {
-    claims = JSON.parse(await fs.readFile(CLAIMS_FILE, 'utf8'));
-  } catch {
-    claims = [];
-  }
+  try { purchases = JSON.parse(await fs.readFile(PURCHASES_FILE, 'utf8')); } catch { purchases = []; }
+  try { claims    = JSON.parse(await fs.readFile(CLAIMS_FILE, 'utf8')); } catch { claims    = []; }
 }
-
 async function saveData() {
   await ensureDataDir();
   await fs.writeFile(PURCHASES_FILE, JSON.stringify(purchases, null, 2));
   await fs.writeFile(CLAIMS_FILE, JSON.stringify(claims, null, 2));
 }
 
-// Φόρτωση presale tiers από αρχείο JSON
+// Load tiers from file next to server.js
 async function loadTiers() {
   try {
     const tiersData = await fs.readFile(path.join(__dirname, 'presale_tiers.json'), 'utf8');
     return JSON.parse(tiersData);
-  } catch (error) {
-    console.error('❌ Error loading presale tiers:', error);
+  } catch (e) {
+    console.error('❌ Error loading presale tiers:', e);
     return [];
   }
 }
@@ -72,43 +60,36 @@ async function loadTiers() {
 let presaleTiers = [];
 let currentTierIndex = 0;
 
-// Εκκίνηση: φορτώνουμε tiers και προηγούμενα purchases/claims
 async function initializeData() {
   presaleTiers = await loadTiers();
   await loadData();
   console.log(`✅ Loaded ${presaleTiers.length} presale tiers`);
 }
 
-// Υπολογισμός συνολικών αγορασμένων tokens
 function calculateTotalRaised() {
-  return purchases.reduce((total, purchase) => total + purchase.amount, 0);
+  return purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 }
-
-// Ενημέρωση τρέχοντος presale tier ανάλογα με τα tokens
 function updateCurrentTier() {
-  const totalRaised = calculateTotalRaised();
-  let raisedSoFar = 0;
+  const total = calculateTotalRaised();
+  let acc = 0;
   for (let i = 0; i < presaleTiers.length; i++) {
-    const tier = presaleTiers[i];
-    if (raisedSoFar + tier.max_tokens > totalRaised) {
-      currentTierIndex = i;
-      return;
-    }
-    raisedSoFar += tier.max_tokens;
+    const t = presaleTiers[i];
+    if (acc + t.max_tokens > total) { currentTierIndex = i; return; }
+    acc += t.max_tokens;
   }
-  currentTierIndex = presaleTiers.length - 1;
+  currentTierIndex = Math.max(0, presaleTiers.length - 1);
 }
 
 // === ROUTES ===
 
-// Επιστρέφει το τρέχον presale tier
+// current tier
 app.get('/tiers', async (req, res) => {
   if (presaleTiers.length === 0) await initializeData();
   updateCurrentTier();
   res.json(presaleTiers[currentTierIndex]);
 });
 
-// Στατιστικά προόδου
+// status
 app.get('/status', (req, res) => {
   updateCurrentTier();
   res.json({
@@ -118,40 +99,73 @@ app.get('/status', (req, res) => {
     totalClaims: claims.length,
     spl_address: SPL_MINT_ADDRESS,
     fee_wallet: FEE_WALLET,
+    // presaleEnded: false, // αν θέλεις να το ελέγχεις από εδώ
   });
 });
 
-// Καταγραφή αγοράς
+// buy (idempotent + ρητά ποσά/fees)
 app.post('/buy', async (req, res) => {
-  const { wallet, amount, token, transaction_signature } = req.body;
+  const {
+    wallet,
+    amount,                  // PENIS tokens
+    token,                   // "SOL" | "USDC"
+    transaction_signature,
+
+    // προαιρετικά από frontend για ακριβές logging
+    total_paid_usdc,
+    total_paid_sol,
+    fee_paid_usdc,
+    fee_paid_sol
+  } = req.body;
+
   if (!wallet || !amount || !token || !transaction_signature) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
+  if (token !== 'SOL' && token !== 'USDC') {
+    return res.status(400).json({ error: 'Invalid token' });
+  }
+
+  // Idempotency: μην ξαναγράψεις ίδια αγορά
+  const existing = purchases.find(p => p.transaction_signature === transaction_signature);
+  if (existing) return res.json(existing);
+
   updateCurrentTier();
   const currentTier = presaleTiers[currentTierIndex];
+
+  // fallback αν δεν ήρθαν τα ρητά ποσά από το frontend
+  const BUY_FEE_PCT = 0.4; // %
+  const computed_total_usdc = Number(amount) * Number(currentTier.price_usdc);
+  const computed_fee_usdc   = computed_total_usdc * (BUY_FEE_PCT / 100);
+
   const purchase = {
     id: purchases.length + 1,
     wallet,
     token,
     amount: Number(amount),
-    total: String(amount),
-    fee: String(amount * currentTier.price_usdc),
     tier: currentTier.tier,
     transaction_signature,
     timestamp: new Date().toISOString(),
     claimed: false,
+
+    total_paid_usdc: (total_paid_usdc ?? Number(computed_total_usdc.toFixed(6))),
+    total_paid_sol:  (total_paid_sol  ?? null),
+    fee_paid_usdc:   (fee_paid_usdc   ?? Number(computed_fee_usdc.toFixed(6))),
+    fee_paid_sol:    (fee_paid_sol    ?? null),
+
+    price_usdc_each: Number(currentTier.price_usdc),
   };
+
   purchases.push(purchase);
-  await saveData(); // αποθήκευση στο δίσκο
-  console.log(`🛒 Purchase: ${amount} tokens by ${wallet.slice(0, 6)}...`);
+  await saveData();
+  console.log(`🛒 Purchase: ${amount} PENIS by ${wallet.slice(0,6)}..., fee(usdc)=${purchase.fee_paid_usdc ?? '-'} fee(sol)=${purchase.fee_paid_sol ?? '-'}`);
   res.json(purchase);
 });
 
-// Έλεγχος αν κάποιος μπορεί να κάνει claim
+// can-claim
 app.get('/can-claim/:wallet', (req, res) => {
   const { wallet } = req.params;
   const userPurchases = purchases.filter(p => p.wallet === wallet);
-  const totalTokens = userPurchases.reduce((total, p) => total + p.amount, 0);
+  const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const anyClaimed = userPurchases.some(p => p.claimed);
   res.json({
     canClaim: totalTokens > 0 && !anyClaimed,
@@ -159,7 +173,7 @@ app.get('/can-claim/:wallet', (req, res) => {
   });
 });
 
-// Καταγραφή claim
+// claim (single-claim ανά wallet)
 app.post('/claim', async (req, res) => {
   const { wallet, transaction_signature } = req.body;
   if (!wallet || !transaction_signature) {
@@ -167,19 +181,17 @@ app.post('/claim', async (req, res) => {
   }
   const userPurchases = purchases.filter(p => p.wallet === wallet);
   const anyClaimed = userPurchases.some(p => p.claimed);
-  if (anyClaimed) {
-    return res.status(400).json({ error: 'Tokens already claimed' });
-  }
-  const totalTokens = userPurchases.reduce((total, p) => total + p.amount, 0);
-  if (totalTokens <= 0) {
-    return res.status(400).json({ error: 'No tokens to claim' });
-  }
-  // Μαρκάρουμε τις αγορές ως claimed
+  if (anyClaimed) return res.status(400).json({ error: 'Tokens already claimed' });
+
+  const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  if (totalTokens <= 0) return res.status(400).json({ error: 'No tokens to claim' });
+
+  // μαρκάρουμε ως claimed
   userPurchases.forEach(p => {
     const idx = purchases.findIndex(x => x.id === p.id);
     if (idx !== -1) purchases[idx].claimed = true;
   });
-  // Δημιουργούμε την εγγραφή claim
+
   const claim = {
     id: claims.length + 1,
     wallet,
@@ -188,33 +200,42 @@ app.post('/claim', async (req, res) => {
     timestamp: new Date().toISOString(),
   };
   claims.push(claim);
-  await saveData(); // αποθήκευση στο δίσκο
-  console.log(`🎉 Claimed: ${totalTokens} tokens by ${wallet.slice(0, 6)}...`);
+
+  await saveData();
+  console.log(`🎉 Claimed: ${totalTokens} tokens by ${wallet.slice(0,6)}...`);
   res.json({ success: true });
 });
 
-// Επιστρέφει το snapshot όλων των αγορών
+// snapshot
 app.get('/snapshot', (req, res) => {
   res.json(purchases);
 });
 
-// Εξαγωγή των αγορών σε CSV
+// export CSV (με fees & price)
 app.get('/export', (req, res) => {
-  const header = 'id,wallet,token,amount,tier,transaction_signature,timestamp,claimed\n';
-  const rows = purchases
-    .map(p =>
-      `${p.id},${p.wallet},${p.token},${p.amount},${p.tier},${p.transaction_signature},${p.timestamp},${p.claimed}`,
-    )
-    .join('\n');
+  const header = [
+    'id','wallet','token','amount','tier',
+    'transaction_signature','timestamp','claimed',
+    'total_paid_usdc','total_paid_sol',
+    'fee_paid_usdc','fee_paid_sol',
+    'price_usdc_each'
+  ].join(',') + '\n';
+
+  const rows = purchases.map(p => ([
+    p.id, p.wallet, p.token, p.amount, p.tier,
+    p.transaction_signature, p.timestamp, p.claimed,
+    p.total_paid_usdc ?? '', p.total_paid_sol ?? '',
+    p.fee_paid_usdc ?? '',  p.fee_paid_sol ?? '',
+    p.price_usdc_each ?? ''
+  ].join(','))).join('\n');
+
   res.setHeader('Content-Disposition', 'attachment; filename=presale_snapshot.csv');
   res.setHeader('Content-Type', 'text/csv');
   res.send(header + rows);
 });
 
-// === Έναρξη server ===
+// start
 (async () => {
   await initializeData();
-  app.listen(PORT, () => {
-    console.log(`🚀 Backend running on port ${PORT}`);
-  });
+  app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
 })();
