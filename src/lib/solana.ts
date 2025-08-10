@@ -31,7 +31,6 @@ export const connection = new Connection(SOLANA_RPC_URL);
 
 
 export const BUY_FEE_PERCENTAGE = 0.4;
-export const CLAIM_FEE_PERCENTAGE = 0.25;
 
 // === 🧠 HELPERS ===
 export const calculateFee = (amount: number, percentage: number): number =>
@@ -198,7 +197,6 @@ export async function executeUSDCPayment(
 
 // === ✅ CLAIM FEE ===
 export async function executeClaimFeePayment(
-  tokenAmount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey || !wallet.signTransaction) {
