@@ -14,6 +14,22 @@ process.on("uncaughtException",  (e)=> console.error("UNCAUGHT EXCEPTION:", e));
 const app  = express();
 const PORT = process.env.PORT || 8080;
 
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
+app.use(cors({
+  origin: CORS_ORIGIN === "*" ? true : CORS_ORIGIN.split(",").map(s => s.trim()),
+  credentials: true
+}));
+app.options("*", cors());
+app.use(express.json());
+
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
+const requireAdmin = (req, res, next) => {
+  if (!ADMIN_SECRET) return next();
+  const key = req.get("x-admin-secret") || req.query.admin_secret;
+  if (key === ADMIN_SECRET) return next();
+  return res.status(401).json({ error: "UNAUTHORIZED" });
+};
+
 // --- Project constants
 const SPL_MINT_ADDRESS = "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 const TREASURY_WALLET  = "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
@@ -39,20 +55,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// ----------- CORS -----------
-const allowed = new Set([
-  "https://presale-happypenis.com",
-  "https://www.presale-happypenis.com",
-  "https://happypennisofficialpresale.vercel.app",
-  "http://localhost:3000"
-]);
-app.use(cors({
-  origin: (o, cb) => cb(null, !o || allowed.has(o)),
-  credentials: true
-}));
-app.options("*", cors());
-app.use(express.json());
 
 // ----------- Data paths (Railway volume) -----------
 const DATA_DIR           = process.env.DATA_DIR || "/data";
@@ -294,6 +296,37 @@ app.post("/claim", async (req, res) => {
     console.log(`🎉 Claimed: ${totalTokens} tokens by ${short(wallet)}, ua=${userAgent}`);
     res.json({ success: true });
   }).catch((e) => { console.error("write-error", e); res.status(500).json({ error: "STORE_FAILED" }); });
+});
+
+
+app.post("/admin/backfill/by-signature", requireAdmin, async (req, res) => {
+  try {
+    const { signature, wallet, token = "USDC", amount, price_usdc_each } = req.body || {};
+    if (!signature || !wallet || !amount) return res.status(400).json({ error: "MISSING_FIELDS" });
+
+    const dbPath = path.join(__dirname, "..", "data", "purchases.json");
+    let purchases = [];
+    try { purchases = JSON.parse(await fs.readFile(dbPath, "utf8")); } catch {}
+
+    if (purchases.some(p => p.transaction_signature === signature)) {
+      return res.json({ ok: true, duplicate: true });
+    }
+
+    const id = purchases.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
+    const rec = {
+      id, wallet, token, amount: Number(amount),
+      tier: null, transaction_signature: signature,
+      timestamp: new Date().toISOString(), claimed: false,
+      price_usdc_each: price_usdc_each != null ? Number(price_usdc_each) : undefined
+    };
+    purchases.push(rec);
+    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+    await fs.writeFile(dbPath, JSON.stringify(purchases, null, 2));
+    res.json(rec);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "BACKFILL_FAILED" });
+  }
 });
 
 // --- debug

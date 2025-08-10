@@ -99,3 +99,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Wallet adapter z-index fixes */
+.wallet-adapter-dropdown,
+.wallet-adapter-modal-wrapper,
+.wallet-adapter-modal,
+.wallet-adapter-modal-container,
+.wallet-adapter-dropdown-list {
+  z-index: 9999 !important;
+}
