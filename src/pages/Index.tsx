@@ -19,24 +19,26 @@ import {
 } from '@/lib/solana';
 import { CustomWalletButton } from '@/components/CustomWalletButton';
 import { recordPurchase, canClaimTokensBulk, recordClaim, getCurrentTier, getPresaleStatus } from '@/lib/api';
+import MobileOpenInWallet from '@/components/MobileOpenInWallet';
 import { Badge } from "@/components/ui/badge";
 
 type PaymentToken = "SOL" | "USDC";
 
 // Presale tiers (fallback local; το backend μπορεί να τα επιστρέφει δυναμικά)
 const PRESALE_TIERS = [
-  { tier: 1, price_usdc: 0.000260, limit: 237500000, duration_days: null },
-  { tier: 2, price_usdc: 0.000312, limit: 237500000, duration_days: null },
-  { tier: 3, price_usdc: 0.000374, limit: 237500000, duration_days: null },
-  { tier: 4, price_usdc: 0.000449, limit: 237500000, duration_days: 30 },
-  { tier: 5, price_usdc: 0.000539, limit: 237500000, duration_days: 30 },
-  { tier: 6, price_usdc: 0.000647, limit: 237500000, duration_days: 30 },
-  { tier: 7, price_usdc: 0.000776, limit: 237500000, duration_days: 30 },
-  { tier: 8, price_usdc: 0.000931, limit: 237500000, duration_days: 30 }
+  { tier: 1, price_usdc: 0.000260, max_tokens: 237500000, duration_days: null },
+  { tier: 2, price_usdc: 0.000312, max_tokens: 237500000, duration_days: null },
+  { tier: 3, price_usdc: 0.000374, max_tokens: 237500000, duration_days: null },
+  { tier: 4, price_usdc: 0.000449, max_tokens: 237500000, duration_days: 1 },
+  { tier: 5, price_usdc: 0.000539, max_tokens: 237500000, duration_days: 1 },
+  { tier: 6, price_usdc: 0.000647, max_tokens: 237500000, duration_days: 1 },
+  { tier: 7, price_usdc: 0.000776, max_tokens: 237500000, duration_days: 1 },
+  { tier: 8, price_usdc: 0.000931, max_tokens: 237500000, duration_days: 1 }
 ];
 
-const PRESALE_GOAL_USDC = 1100000000;
+const GOAL_TOKENS = PRESALE_TIERS.reduce((s, t) => s + (t.max_tokens || t.limit || 0), 0);
 const SOL_TO_USDC_RATE = 170;
+const FORM_KEY = "presale:form:v1";
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
@@ -53,6 +55,27 @@ export default function PresalePage() {
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const lastWallet = useRef<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FORM_KEY);
+      if (raw) {
+        const { amount: savedAmount, token } = JSON.parse(raw);
+        if (typeof savedAmount === 'number') setAmount(String(savedAmount));
+        if (token === 'SOL' || token === 'USDC') setPaymentToken(token);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const amt = parseFloat(amount);
+      localStorage.setItem(
+        FORM_KEY,
+        JSON.stringify({ amount: isNaN(amt) ? 0 : amt, token: paymentToken })
+      );
+    } catch { /* ignore */ }
+  }, [amount, paymentToken]);
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -102,11 +125,11 @@ export default function PresalePage() {
   useEffect(() => {
     let raisedSoFar = 0;
     for (const tier of PRESALE_TIERS) {
-      if (raisedSoFar + tier.limit > totalRaised) {
+      if (raisedSoFar + tier.max_tokens > totalRaised) {
         setCurrentTier(tier);
         break;
       }
-      raisedSoFar += tier.limit;
+      raisedSoFar += tier.max_tokens;
     }
   }, [totalRaised]);
 
@@ -133,8 +156,9 @@ export default function PresalePage() {
     if (!publicKey || !connected) return;
     try {
       setIsCheckingStatus(true);
-      const [claimInfo] = await canClaimTokensBulk([publicKey.toString()]);
-      setClaimableTokens(claimInfo);
+      const map = await canClaimTokensBulk([publicKey.toString()]);
+      const info = map.get(publicKey.toString());
+      setClaimableTokens(info ? { canClaim: info.canClaim, total: info.total } : null);
     } catch (e) {
       toast.error("Failed to check claim status");
       setClaimableTokens(null);
@@ -194,13 +218,17 @@ export default function PresalePage() {
       if (!txSignature) throw new Error("No transaction signature returned");
         (window as typeof window & { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
-      const rec = await recordPurchase(
-        publicKey.toString(),
-        penisAmount,
-        paymentToken,
-        txSignature,
-        { total_paid_usdc, total_paid_sol, fee_paid_usdc, fee_paid_sol }
-      );
+      const rec = await recordPurchase({
+        wallet: publicKey.toString(),
+        amount: penisAmount,
+        token: paymentToken,
+        transaction_signature: txSignature,
+        total_paid_usdc: total_paid_usdc ?? undefined,
+        total_paid_sol: total_paid_sol ?? undefined,
+        fee_paid_usdc: fee_paid_usdc ?? undefined,
+        fee_paid_sol: fee_paid_sol ?? undefined,
+        price_usdc_each: currentTier.price_usdc,
+      });
       if (!rec) { toast.error("Purchase recorded failed. Try again."); return; }
 
       setTotalRaised(prev => prev + penisAmount);
@@ -227,10 +255,10 @@ export default function PresalePage() {
     setIsClaimPending(true);
     try {
       const tokenAmount = parseFloat(claimableTokens.total);
-      const txSignature = await executeClaimFeePayment(tokenAmount, { publicKey, signTransaction });
+      const txSignature = await executeClaimFeePayment({ publicKey, signTransaction });
       if (!txSignature) throw new Error("Claim fee payment failed");
-      const success = await recordClaim(publicKey.toString(), txSignature);
-      if (!success) throw new Error("Failed to record claim on server");
+      const resp = await recordClaim({ wallet: publicKey.toString(), transaction_signature: txSignature });
+      if (!resp?.success) throw new Error("Failed to record claim on server");
       uiToast({ title: "Claim Successful!", description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens` });
       setClaimableTokens({ ...claimableTokens, canClaim: false });
       } catch (error: unknown) {
@@ -241,9 +269,11 @@ export default function PresalePage() {
       }
     };
 
-  const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
+  const raisedPercentage = (totalRaised / GOAL_TOKENS) * 100;
 
   return (
+    <>
+      <MobileOpenInWallet />
     <div 
       className="flex flex-col min-h-screen text-white"
       style={{
@@ -316,7 +346,7 @@ export default function PresalePage() {
               <Progress value={Math.min(100, raisedPercentage)} className="h-2" />
               <div className="flex justify-between text-xs text-gray-400">
                 <span>{totalRaised.toLocaleString()} PENIS</span>
-                <span>{PRESALE_GOAL_USDC.toLocaleString()} PENIS</span>
+                <span>{GOAL_TOKENS.toLocaleString()} PENIS</span>
               </div>
             </div>
 
@@ -432,7 +462,7 @@ export default function PresalePage() {
                             <span>{tier.price_usdc} USDC</span>
                           </div>
                           <div className="text-xs text-gray-400 mt-1">
-                            <span>Limit: {tier.limit.toLocaleString()} PENIS</span>
+                            <span>Limit: {tier.max_tokens.toLocaleString()} PENIS</span>
                             {tier.duration_days && <span className="ml-2">Duration: {tier.duration_days} days</span>}
                           </div>
                         </div>
@@ -458,5 +488,6 @@ export default function PresalePage() {
         }
       `}</style>
     </div>
+    </>
   );
 }
