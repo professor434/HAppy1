@@ -194,13 +194,14 @@ export default function PresalePage() {
       if (!txSignature) throw new Error("No transaction signature returned");
         (window as typeof window & { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
-      await recordPurchase(
+      const rec = await recordPurchase(
         publicKey.toString(),
         penisAmount,
         paymentToken,
         txSignature,
         { total_paid_usdc, total_paid_sol, fee_paid_usdc, fee_paid_sol }
       );
+      if (!rec) { toast.error("Purchase recorded failed. Try again."); return; }
 
       setTotalRaised(prev => prev + penisAmount);
       setAmount("");
