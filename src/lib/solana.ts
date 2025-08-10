@@ -124,7 +124,7 @@ export async function executeUSDCPayment(
 // ====== Claim Fee (flat SOL) ======
 export async function executeClaimFeePayment(
   _tokenAmount: number,
-  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any },
+  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
   const claimFeeSOL = ENV.VITE_CLAIM_FEE_SOL ? Number(ENV.VITE_CLAIM_FEE_SOL) : 0.0005;
