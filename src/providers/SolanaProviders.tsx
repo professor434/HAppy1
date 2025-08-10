@@ -1,7 +1,10 @@
 import { PropsWithChildren, useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { clusterApiUrl } from "@solana/web3.js";
-import { SolanaMobileWalletAdapter } from "@solana-mobile/wallet-adapter-mobile";
+import {
+  SolanaMobileWalletAdapter,
+  createDefaultAuthorizationResultCache,
+} from "@solana-mobile/wallet-adapter-mobile";
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
   const endpoint = clusterApiUrl("mainnet-beta");
@@ -12,6 +15,7 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
         uri: typeof window !== "undefined" ? window.location.origin : "https://example.com",
       },
       cluster: "mainnet-beta",
+      authorizationResultCache: createDefaultAuthorizationResultCache(),
     }),
   ], []);
 
