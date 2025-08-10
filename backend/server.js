@@ -158,6 +158,8 @@ app.post('/buy', async (req, res) => {
     return res.status(400).json({ error: 'Invalid token' });
   }
 
+  const userAgent = req.get('user-agent') || '';
+
   await queue(async () => {
     await loadData();
     const existing = purchases.find(p => p.transaction_signature === transaction_signature);
@@ -196,7 +198,7 @@ app.post('/buy', async (req, res) => {
       purchases.push(purchase);
       await saveData();
       const feeStr = isSOL ? `fee(sol)=${purchase.fee_paid_sol}` : `fee(usdc)=${purchase.fee_paid_usdc}`;
-      console.log(`🛒 Purchase: ${purchase.amount} PENIS by ${short(purchase.wallet)}, ${feeStr}`);
+      console.log(`🛒 Purchase: ${purchase.amount} PENIS by ${short(purchase.wallet)}, ${feeStr} ua=${userAgent}`);
       res.json(purchase);
   }).catch(e => { console.error('write-error', e); res.status(500).json({ error: 'STORE_FAILED' }); });
 });
@@ -217,7 +219,8 @@ app.get('/can-claim/:wallet', async (req, res) => {
 // can-claim bulk
 app.post('/can-claim', async (req, res) => {
   const wallets = (req.body && req.body.wallets) || [];
-  console.log('📦 /can-claim raw body:', { wallets });
+  const ua = req.get('user-agent') || '';
+  console.log('📦 /can-claim raw body:', { wallets, ua });
   await loadData();
   const out = wallets.map(w => {
     const ww = String(w).trim();
@@ -233,6 +236,7 @@ app.post('/can-claim', async (req, res) => {
 // claim (single-claim ανά wallet)
 app.post('/claim', async (req, res) => {
   const { wallet, transaction_signature } = req.body;
+  const ua = req.get('user-agent') || '';
   if (!wallet || !transaction_signature) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -261,7 +265,7 @@ app.post('/claim', async (req, res) => {
     claims.push(claim);
 
     await saveData();
-    console.log(`🎉 Claimed: ${totalTokens} tokens by ${short(wallet)}`);
+    console.log(`🎉 Claimed: ${totalTokens} tokens by ${short(wallet)}, ua=${ua}`);
     res.json({ success: true });
   }).catch(e => { console.error('write-error', e); res.status(500).json({ error: 'STORE_FAILED' }); });
 });
