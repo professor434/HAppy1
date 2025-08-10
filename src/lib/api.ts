@@ -60,24 +60,23 @@ export async function recordPurchase(
   transaction_signature: string,
   extras?: { total_paid_usdc?: number | null; total_paid_sol?: number | null; fee_paid_usdc?: number | null; fee_paid_sol?: number | null }
 ): Promise<PurchaseRecord | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/buy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wallet, amount, token, transaction_signature, ...extras })
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to record purchase');
+  const body = JSON.stringify({ wallet, amount, token, transaction_signature, ...extras });
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await fetch(`${API_BASE_URL}/buy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+        credentials: 'include'
+      });
+      if (r.ok) return await r.json();
+    } catch {
+      // retry
     }
-    return await response.json();
-  } catch (error) {
-    console.error('API error:', error);
-    toast.error('Failed to record purchase', {
-      description: error instanceof Error ? error.message : 'Unknown error occurred'
-    });
-    return null;
+    await new Promise(r => setTimeout(r, 400 * (i + 1)));
   }
+  return null;
 }
 
 /**

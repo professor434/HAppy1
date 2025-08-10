@@ -16,35 +16,66 @@ const SPL_MINT_ADDRESS = 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs';
 const TREASURY_WALLET  = '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 const FEE_WALLET       = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 
-// CORS (πρόσθεσα presale-happypenis.com και localhost)
-const allowedOrigins = (process.env.CORS_ORIGIN || 
-  'https://happypennisofficialpresale.vercel.app,https://presale-happypenis.com,http://localhost:3000'
-).split(',').map(o => o.trim());
+// ==== paths & helpers ====
+const DATA_DIR = process.env.DATA_DIR || '/data';
+const FILE_PURCHASES = path.join(DATA_DIR, 'purchases.json');
+const FILE_CLAIMS    = path.join(DATA_DIR, 'claims.json');
 
-app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.options('*', cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
+await fs.mkdir(DATA_DIR, { recursive: true });
 
-// In-memory + persistent store
+// migrate από παλιό ./data αν υπάρχει (μία φορά)
+async function migrateIfNeeded() {
+  const legacyDir = path.join(process.cwd(), 'data');
+  try {
+    const body = await fs.readFile(path.join(legacyDir, 'purchases.json'), 'utf8');
+    await fs.writeFile(FILE_PURCHASES, body, { flag: 'wx' }).catch(() => {});
+  } catch {}
+  try {
+    const body = await fs.readFile(path.join(legacyDir, 'claims.json'), 'utf8');
+    await fs.writeFile(FILE_CLAIMS, body, { flag: 'wx' }).catch(() => {});
+  } catch {}
+  // bootstrap αν λείπουν
+  try { await fs.access(FILE_PURCHASES); } catch { await fs.writeFile(FILE_PURCHASES, JSON.stringify({ purchases: [] }, null, 2)); }
+  try { await fs.access(FILE_CLAIMS);    } catch { await fs.writeFile(FILE_CLAIMS,    JSON.stringify({ claims: [] }, null, 2)); }
+}
+await migrateIfNeeded();
+
 let purchases = [];
 let claims    = [];
 
-const DATA_DIR       = path.join(__dirname, '..', 'data');
-const PURCHASES_FILE = path.join(DATA_DIR, 'purchases.json');
-const CLAIMS_FILE    = path.join(DATA_DIR, 'claims.json');
-
-async function ensureDataDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true }).catch(() => {});
-}
 async function loadData() {
-  try { purchases = JSON.parse(await fs.readFile(PURCHASES_FILE, 'utf8')); } catch { purchases = []; }
-  try { claims    = JSON.parse(await fs.readFile(CLAIMS_FILE, 'utf8')); } catch { claims    = []; }
+  try {
+    const rawP = JSON.parse(await fs.readFile(FILE_PURCHASES, 'utf8'));
+    purchases = Array.isArray(rawP) ? rawP : rawP.purchases || [];
+  } catch { purchases = []; }
+  try {
+    const rawC = JSON.parse(await fs.readFile(FILE_CLAIMS, 'utf8'));
+    claims = Array.isArray(rawC) ? rawC : rawC.claims || [];
+  } catch { claims = []; }
 }
 async function saveData() {
-  await ensureDataDir();
-  await fs.writeFile(PURCHASES_FILE, JSON.stringify(purchases, null, 2));
-  await fs.writeFile(CLAIMS_FILE, JSON.stringify(claims, null, 2));
+  const tmpP = FILE_PURCHASES + '.tmp';
+  await fs.writeFile(tmpP, JSON.stringify({ purchases }, null, 2));
+  await fs.rename(tmpP, FILE_PURCHASES);
+  const tmpC = FILE_CLAIMS + '.tmp';
+  await fs.writeFile(tmpC, JSON.stringify({ claims }, null, 2));
+  await fs.rename(tmpC, FILE_CLAIMS);
 }
+
+// σειριοποίηση εγγραφών
+let writing = Promise.resolve();
+const queue = fn => writing = writing.then(fn, fn);
+
+// ==== CORS (πλήρης λίστα) ====
+const allowed = new Set([
+  'https://presale-happypenis.com',
+  'https://www.presale-happypenis.com',
+  'https://happypennisofficialpresale.vercel.app',
+  'http://localhost:3000'
+]);
+app.use(cors({ origin: (o, cb) => cb(null, !o || allowed.has(o)), credentials: true }));
+app.options('*', cors());
+app.use(express.json());
 
 // Load tiers from file next to server.js
 async function loadTiers() {
@@ -105,65 +136,66 @@ app.get('/status', (req, res) => {
 
 // buy (idempotent + ρητά ποσά/fees)
 app.post('/buy', async (req, res) => {
+  const b = req.is('application/json') ? req.body : JSON.parse(req.body || '{}');
   const {
     wallet,
-    amount,                  // PENIS tokens
-    token,                   // "SOL" | "USDC"
+    amount,
+    token,
     transaction_signature,
-
-    // προαιρετικά από frontend για ακριβές logging
     total_paid_usdc,
     total_paid_sol,
     fee_paid_usdc,
     fee_paid_sol
-  } = req.body;
+  } = b || {};
 
   if (!wallet || !amount || !token || !transaction_signature) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  if (token !== 'SOL' && token !== 'USDC') {
+  if (!['SOL', 'USDC'].includes(token)) {
     return res.status(400).json({ error: 'Invalid token' });
   }
 
-  // Idempotency: μην ξαναγράψεις ίδια αγορά
-  const existing = purchases.find(p => p.transaction_signature === transaction_signature);
-  if (existing) return res.json(existing);
+  await queue(async () => {
+    await loadData();
+    const existing = purchases.find(p => p.transaction_signature === transaction_signature);
+    if (existing) { res.json(existing); return; }
 
-  updateCurrentTier();
-  const currentTier = presaleTiers[currentTierIndex];
+    updateCurrentTier();
+    const currentTier = presaleTiers[currentTierIndex];
 
-  // fallback αν δεν ήρθαν τα ρητά ποσά από το frontend
-  const BUY_FEE_PCT = 0.4; // %
-  const computed_total_usdc = Number(amount) * Number(currentTier.price_usdc);
-  const computed_fee_usdc   = computed_total_usdc * (BUY_FEE_PCT / 100);
+    const BUY_FEE_PCT = 0.4; // %
+    const computed_total_usdc = Number(amount) * Number(currentTier.price_usdc);
+    const computed_fee_usdc   = computed_total_usdc * (BUY_FEE_PCT / 100);
 
-  const purchase = {
-    id: purchases.length + 1,
-    wallet,
-    token,
-    amount: Number(amount),
-    tier: currentTier.tier,
-    transaction_signature,
-    timestamp: new Date().toISOString(),
-    claimed: false,
+    const purchase = {
+      id: purchases.length + 1,
+      wallet: String(wallet).trim(),
+      token,
+      amount: Number(amount),
+      tier: currentTier.tier,
+      transaction_signature,
+      timestamp: new Date().toISOString(),
+      claimed: false,
 
-    total_paid_usdc: (total_paid_usdc ?? Number(computed_total_usdc.toFixed(6))),
-    total_paid_sol:  (total_paid_sol  ?? null),
-    fee_paid_usdc:   (fee_paid_usdc   ?? Number(computed_fee_usdc.toFixed(6))),
-    fee_paid_sol:    (fee_paid_sol    ?? null),
+      total_paid_usdc: (total_paid_usdc ?? Number(computed_total_usdc.toFixed(6))),
+      total_paid_sol:  (total_paid_sol  ?? null),
+      fee_paid_usdc:   (fee_paid_usdc   ?? Number(computed_fee_usdc.toFixed(6))),
+      fee_paid_sol:    (fee_paid_sol    ?? null),
 
-    price_usdc_each: Number(currentTier.price_usdc),
-  };
+      price_usdc_each: Number(currentTier.price_usdc),
+    };
 
-  purchases.push(purchase);
-  await saveData();
-  console.log(`🛒 Purchase: ${amount} PENIS by ${wallet.slice(0,6)}..., fee(usdc)=${purchase.fee_paid_usdc ?? '-'} fee(sol)=${purchase.fee_paid_sol ?? '-'}`);
-  res.json(purchase);
+    purchases.push(purchase);
+    await saveData();
+    console.log(`🛒 Purchase: ${purchase.amount} PENIS by ${purchase.wallet.slice(0,6)}..., fee(usdc)=${purchase.fee_paid_usdc ?? '-'} fee(sol)=${purchase.fee_paid_sol ?? '-'}`);
+    res.json(purchase);
+  }).catch(e => { console.error('write-error', e); res.status(500).json({ error: 'STORE_FAILED' }); });
 });
 
 // can-claim (single wallet - retained for compatibility)
-app.get('/can-claim/:wallet', (req, res) => {
+app.get('/can-claim/:wallet', async (req, res) => {
   const { wallet } = req.params;
+  await loadData();
   const userPurchases = purchases.filter(p => p.wallet === wallet);
   const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const anyClaimed = userPurchases.some(p => p.claimed);
@@ -174,27 +206,19 @@ app.get('/can-claim/:wallet', (req, res) => {
 });
 
 // can-claim bulk
-app.post('/can-claim', (req, res) => {
-  console.log('📦 /can-claim raw body:', req.body);
-  const wallets = Array.isArray(req.body) ? req.body : req.body?.wallets;
-  if (!Array.isArray(wallets)) {
-    console.warn('⚠️  /can-claim invalid payload:', req.body);
-    return res.status(400).json({ error: 'wallets must be an array' });
-  }
-  const results = wallets.map(wallet => {
-    const userPurchases = purchases.filter(p => p.wallet === wallet);
-    if (userPurchases.length === 0) {
-      console.debug(`🔍 /can-claim checked wallet with no purchases: ${wallet}`);
-    }
-    const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    const anyClaimed = userPurchases.some(p => p.claimed);
-    return {
-      wallet,
-      canClaim: totalTokens > 0 && !anyClaimed,
-      total: totalTokens > 0 ? String(totalTokens) : undefined,
-    };
+app.post('/can-claim', async (req, res) => {
+  const wallets = (req.body && req.body.wallets) || [];
+  console.log('📦 /can-claim raw body:', { wallets });
+  await loadData();
+  const out = wallets.map(w => {
+    const ww = String(w).trim();
+    const list = purchases.filter(p => p.wallet === ww);
+    if (list.length === 0) console.log('🔍 /can-claim checked wallet with no purchases:', ww);
+    const total = list.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const anyClaimed = list.some(p => p.claimed);
+    return { wallet: ww, canClaim: total > 0 && !anyClaimed, total: total || undefined };
   });
-  res.json(results);
+  res.json(out);
 });
 
 // claim (single-claim ανά wallet)
@@ -203,31 +227,44 @@ app.post('/claim', async (req, res) => {
   if (!wallet || !transaction_signature) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  const userPurchases = purchases.filter(p => p.wallet === wallet);
-  const anyClaimed = userPurchases.some(p => p.claimed);
-  if (anyClaimed) return res.status(400).json({ error: 'Tokens already claimed' });
 
-  const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  if (totalTokens <= 0) return res.status(400).json({ error: 'No tokens to claim' });
+  await queue(async () => {
+    await loadData();
+    const userPurchases = purchases.filter(p => p.wallet === wallet);
+    const anyClaimed = userPurchases.some(p => p.claimed);
+    if (anyClaimed) { res.status(400).json({ error: 'Tokens already claimed' }); return; }
 
-  // μαρκάρουμε ως claimed
-  userPurchases.forEach(p => {
-    const idx = purchases.findIndex(x => x.id === p.id);
-    if (idx !== -1) purchases[idx].claimed = true;
-  });
+    const totalTokens = userPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    if (totalTokens <= 0) { res.status(400).json({ error: 'No tokens to claim' }); return; }
 
-  const claim = {
-    id: claims.length + 1,
-    wallet,
-    total_tokens: totalTokens,
-    transaction_signature,
-    timestamp: new Date().toISOString(),
-  };
-  claims.push(claim);
+    userPurchases.forEach(p => {
+      const idx = purchases.findIndex(x => x.id === p.id);
+      if (idx !== -1) purchases[idx].claimed = true;
+    });
 
-  await saveData();
-  console.log(`🎉 Claimed: ${totalTokens} tokens by ${wallet.slice(0,6)}...`);
-  res.json({ success: true });
+    const claim = {
+      id: claims.length + 1,
+      wallet,
+      total_tokens: totalTokens,
+      transaction_signature,
+      timestamp: new Date().toISOString(),
+    };
+    claims.push(claim);
+
+    await saveData();
+    console.log(`🎉 Claimed: ${totalTokens} tokens by ${wallet.slice(0,6)}...`);
+    res.json({ success: true });
+  }).catch(e => { console.error('write-error', e); res.status(500).json({ error: 'STORE_FAILED' }); });
+});
+
+// === debug ===
+app.get('/debug/where', async (req, res) => {
+  await loadData();
+  res.json({ file: FILE_PURCHASES, count: purchases.length });
+});
+app.get('/debug/list', async (req, res) => {
+  await loadData();
+  res.json(purchases.slice(-10));
 });
 
 // snapshot
