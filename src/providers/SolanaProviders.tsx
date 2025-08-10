@@ -12,6 +12,7 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
       <WalletProvider wallets={[]} autoConnect>
         {children}
       </WalletProvider>
+
     </ConnectionProvider>
   );
 }
