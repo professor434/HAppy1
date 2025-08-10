@@ -89,12 +89,14 @@ export async function recordClaim(data: { wallet: string; transaction_signature:
 }
 
 // Admin helpers (αν τα χρησιμοποιείς)
+
 export const getSnapshot = (key: string) => j<PurchaseRecord[]>(`/snapshot?key=${encodeURIComponent(key)}`);
 export async function downloadSnapshotCSV(key: string) {
   const res = await fetch(API_BASE + `/export?key=${encodeURIComponent(key)}`, {
     cache: "no-store",
     headers: { "cache-control": "no-cache" },
   });
+
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
