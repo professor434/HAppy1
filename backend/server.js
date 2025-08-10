@@ -37,6 +37,15 @@ const FEE_WALLET       = "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 const PRESALE_END_AT   = process.env.PRESALE_END_AT || ""; // ISO string αν θέλεις να κλείσει η presale
 const short = (w = "") => String(w).slice(0, 6) + "...";
 
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
+
+function requireAdmin(req, res, next) {
+  if (!ADMIN_SECRET) return res.status(403).json({ error: "ADMIN_ONLY" });
+  const k = req.get("x-admin-secret") || req.query.key;
+  if (k !== ADMIN_SECRET) return res.status(403).json({ error: "ADMIN_ONLY" });
+  next();
+}
+
 // ----------- Anti-cache για όλα τα API JSON που αλλάζουν συχνά -----------
 app.set("etag", false);
 app.use((req, res, next) => {
@@ -55,6 +64,15 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+
+// ----------- CORS -----------
+const allowed = new Set([
+  "https://presale-happypenis.com",
+  "https://www.presale-happypenis.com",
+  "https://happypennisofficialpresale.vercel.app",
+  "http://localhost:3000"
+]);
 
 // ----------- Data paths (Railway volume) -----------
 const DATA_DIR           = process.env.DATA_DIR || "/data";
@@ -338,10 +356,12 @@ app.get("/debug/list", async (req, res) => {
   await loadData();
   res.json(purchases.slice(-10));
 });
-app.get("/snapshot", (req, res) => res.json(purchases));
+app.get("/snapshot", requireAdmin, (req, res) => res.json(purchases));
 
 // export CSV
-app.get("/export", (req, res) => {
+
+app.get("/export", requireAdmin, (req, res) => {
+
   const header = [
     "id","wallet","token","amount","tier",
     "transaction_signature","timestamp","claimed",
