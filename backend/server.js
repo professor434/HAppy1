@@ -20,6 +20,7 @@ const FEE_WALLET       = 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const FILE_PURCHASES = path.join(DATA_DIR, 'purchases.json');
 const FILE_CLAIMS    = path.join(DATA_DIR, 'claims.json');
+const MIGRATION_SENTINEL = path.join(DATA_DIR, '.fix_fees_done');
 
 await fs.mkdir(DATA_DIR, { recursive: true });
 
@@ -293,6 +294,49 @@ app.get('/export', (req, res) => {
   res.setHeader('Content-Disposition', 'attachment; filename=presale_snapshot.csv');
   res.setHeader('Content-Type', 'text/csv');
   res.send(header + rows);
+});
+
+// --- One-time cleanup: fix wrong fee fields & normalize numbers
+app.get('/debug/migration-status', async (req, res) => {
+  try { await fs.access(MIGRATION_SENTINEL); res.json({ done: true }); }
+  catch { res.json({ done: false }); }
+});
+
+async function runFixFeesOnce() {
+  try { await fs.access(MIGRATION_SENTINEL); return { ok: true, alreadyRun: true }; } catch {}
+  await loadData();
+  let changed = 0;
+  for (const p of purchases) {
+    p.wallet = String(p.wallet||'').trim();
+    p.token  = (p.token === 'USDC') ? 'USDC' : 'SOL';
+    p.amount = Number(p.amount||0);
+    p.tier   = Number(p.tier||1);
+    p.price_usdc_each = Number(p.price_usdc_each||0.00026);
+    if (p.token === 'SOL') {
+      if (Number(p.total_paid_usdc)) { p.total_paid_usdc = 0; changed++; }
+      if (Number(p.fee_paid_usdc))   { p.fee_paid_usdc   = 0; changed++; }
+      p.total_paid_sol = Number(p.total_paid_sol||0);
+      p.fee_paid_sol   = Number(p.fee_paid_sol||0);
+    } else {
+      if (Number(p.total_paid_sol)) { p.total_paid_sol = 0; changed++; }
+      if (Number(p.fee_paid_sol))   { p.fee_paid_sol   = 0; changed++; }
+      p.total_paid_usdc = Number(p.total_paid_usdc||0);
+      p.fee_paid_usdc   = Number(p.fee_paid_usdc||0);
+    }
+  }
+  await saveData();
+  await fs.writeFile(MIGRATION_SENTINEL, new Date().toISOString(), 'utf8');
+  return { ok: true, changed, total: purchases.length };
+}
+
+app.post('/debug/fix-fees-once', async (req, res) => {
+  try { res.json(await runFixFeesOnce()); }
+  catch (e) { console.error(e); res.status(500).json({ ok: false, error: String(e) }); }
+});
+
+app.get('/debug/fix-fees-once', async (req, res) => {
+  try { res.json(await runFixFeesOnce()); }
+  catch (e) { console.error(e); res.status(500).json({ ok: false, error: String(e) }); }
 });
 
 // start
