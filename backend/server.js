@@ -22,7 +22,6 @@ const short = (w = '') => String(w).slice(0, 6) + '...';
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const FILE_PURCHASES = path.join(DATA_DIR, 'purchases.json');
 const FILE_CLAIMS    = path.join(DATA_DIR, 'claims.json');
-
 await fs.mkdir(DATA_DIR, { recursive: true });
 
 // migrate από παλιό ./data αν υπάρχει (μία φορά)
@@ -165,42 +164,42 @@ app.post('/buy', async (req, res) => {
     const existing = purchases.find(p => p.transaction_signature === transaction_signature);
     if (existing) { res.json(existing); return; }
 
-      updateCurrentTier();
-      const currentTier = presaleTiers[currentTierIndex];
-      const isSOL = token === 'SOL';
-      const isUSDC = token === 'USDC';
+    updateCurrentTier();
+    const currentTier = presaleTiers[currentTierIndex];
+    const isSOL  = token === 'SOL';
+    const isUSDC = token === 'USDC';
 
-      const purchase = {
-        id: purchases.length + 1,
-        wallet: String(wallet).trim(),
-        token,
-        amount: Number(amount),
-        tier: currentTier.tier,
-        transaction_signature,
-        timestamp: new Date().toISOString(),
-        claimed: false,
+    const purchase = {
+      id: purchases.length + 1,
+      wallet: String(wallet).trim(),
+      token,
+      amount: Number(amount),
+      tier: currentTier.tier,
+      transaction_signature,
+      timestamp: new Date().toISOString(),
+      claimed: false,
 
-        price_usdc_each: Number(price_usdc_each ?? currentTier?.price_usdc ?? 0.00026),
+      price_usdc_each: Number(price_usdc_each ?? currentTier?.price_usdc ?? 0.00026),
 
-        total_paid_sol : isSOL  ? Number(total_paid_sol  ?? 0) : 0,
-        fee_paid_sol   : isSOL  ? Number(fee_paid_sol    ?? 0) : 0,
-        total_paid_usdc: isUSDC ? Number(total_paid_usdc ?? 0) : 0,
-        fee_paid_usdc  : isUSDC ? Number(fee_paid_usdc   ?? 0) : 0,
-        user_agent: userAgent,
-      };
+      total_paid_sol : isSOL  ? Number(total_paid_sol  ?? 0) : 0,
+      fee_paid_sol   : isSOL  ? Number(fee_paid_sol    ?? 0) : 0,
+      total_paid_usdc: isUSDC ? Number(total_paid_usdc ?? 0) : 0,
+      fee_paid_usdc  : isUSDC ? Number(fee_paid_usdc   ?? 0) : 0,
+      user_agent: userAgent,
+    };
 
-      if (isSOL && (purchase.fee_paid_usdc || purchase.total_paid_usdc)) {
-        purchase.fee_paid_usdc = 0; purchase.total_paid_usdc = 0;
-      }
-      if (isUSDC && (purchase.fee_paid_sol || purchase.total_paid_sol)) {
-        purchase.fee_paid_sol = 0; purchase.total_paid_sol = 0;
-      }
+    if (isSOL && (purchase.fee_paid_usdc || purchase.total_paid_usdc)) {
+      purchase.fee_paid_usdc = 0; purchase.total_paid_usdc = 0;
+    }
+    if (isUSDC && (purchase.fee_paid_sol || purchase.total_paid_sol)) {
+      purchase.fee_paid_sol = 0; purchase.total_paid_sol = 0;
+    }
 
-      purchases.push(purchase);
-      await saveData();
-      const feeStr = isSOL ? `fee(sol)=${purchase.fee_paid_sol}` : `fee(usdc)=${purchase.fee_paid_usdc}`;
-      console.log(`🛒 Purchase: ${purchase.amount} PENIS by ${short(purchase.wallet)}, ${feeStr} ua=${userAgent}`);
-      res.json(purchase);
+    purchases.push(purchase);
+    await saveData();
+    const feeStr = isSOL ? `fee(sol)=${purchase.fee_paid_sol}` : `fee(usdc)=${purchase.fee_paid_usdc}`;
+    console.log(`🛒 Purchase: ${purchase.amount} PENIS by ${short(purchase.wallet)}, ${feeStr} ua=${userAgent}`);
+    res.json(purchase);
   }).catch(e => { console.error('write-error', e); res.status(500).json({ error: 'STORE_FAILED' }); });
 });
 
