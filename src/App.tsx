@@ -2,16 +2,17 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { SolanaWalletProvider } from './components/SolanaWalletProvider';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import Index from './pages/Index';
 import NotFound from './pages/NotFound';
+import '@solana/wallet-adapter-react-ui/styles.css';
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <SolanaWalletProvider>
+      <WalletModalProvider>
         <Toaster />
         <BrowserRouter>
           <Routes>
@@ -19,7 +20,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </SolanaWalletProvider>
+      </WalletModalProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
