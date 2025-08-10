@@ -13,11 +13,12 @@ interface PurchaseRecord {
   transaction_signature: string;
   timestamp: string;
   claimed: boolean;
-  total_paid_usdc: number | null;
-  total_paid_sol: number | null;
-  fee_paid_usdc: number | null;
-  fee_paid_sol: number | null;
+  total_paid_usdc: number;
+  total_paid_sol: number;
+  fee_paid_usdc: number;
+  fee_paid_sol: number;
   price_usdc_each: number;
+  user_agent?: string;
 }
 
 interface TierInfo {
@@ -58,26 +59,31 @@ export async function recordPurchase(
   amount: number,
   token: string,
   transaction_signature: string,
-  extras?: { total_paid_usdc?: number | null; total_paid_sol?: number | null; fee_paid_usdc?: number | null; fee_paid_sol?: number | null }
-): Promise<PurchaseRecord | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/buy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wallet, amount, token, transaction_signature, ...extras })
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to record purchase');
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('API error:', error);
-    toast.error('Failed to record purchase', {
-      description: error instanceof Error ? error.message : 'Unknown error occurred'
-    });
-    return null;
+  extras?: {
+    price_usdc_each?: number;
+    total_paid_usdc?: number;
+    total_paid_sol?: number;
+    fee_paid_usdc?: number;
+    fee_paid_sol?: number;
   }
+): Promise<PurchaseRecord | null> {
+  const body = JSON.stringify({ wallet, amount, token, transaction_signature, ...extras });
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await fetch(`${API_BASE_URL}/buy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+        credentials: 'include'
+      });
+      if (r.ok) return await r.json();
+    } catch {
+      // retry
+    }
+    await new Promise(r => setTimeout(r, 400 * (i + 1)));
+  }
+  return null;
 }
 
 /**
