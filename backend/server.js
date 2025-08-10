@@ -4,24 +4,30 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// --- ESM boilerplate
+// ===== ESM & app setup =====
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
-// safety nets
 process.on("unhandledRejection", (r)=> console.error("UNHANDLED REJECTION:", r));
 process.on("uncaughtException",  (e)=> console.error("UNCAUGHT EXCEPTION:", e));
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
+app.set("etag", false);                 // κόβουμε τα 304
+app.set("trust proxy", true);
 
-// --- Project constants
+// ===== Constants =====
 const SPL_MINT_ADDRESS = "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 const TREASURY_WALLET  = "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
 const FEE_WALLET       = "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 const short = (w = "") => String(w).slice(0, 6) + "...";
 
-// --- Paths (Railway volume)
+// Admin backfill (optional)
+const SOLANA_RPC   = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
+const USDC_MINT    = "EPjFWdd5AufqSSqeM2qFFaFb7w5k1ZJCYF1xQvZ3K9G";
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
+
+// ===== Data paths (Railway volume) =====
 const DATA_DIR           = process.env.DATA_DIR || "/data";
 const FILE_PURCHASES     = path.join(DATA_DIR, "purchases.json");
 const FILE_CLAIMS        = path.join(DATA_DIR, "claims.json");
@@ -29,7 +35,7 @@ const MIGRATION_SENTINEL = path.join(DATA_DIR, ".fix_fees_done");
 
 await fs.mkdir(DATA_DIR, { recursive: true });
 
-// --- Migrate legacy ./data/* once and bootstrap files
+// ===== Bootstrap / migrate legacy ./data =====
 async function migrateIfNeeded() {
   const legacyDir = path.join(process.cwd(), "data");
   try {
@@ -45,11 +51,10 @@ async function migrateIfNeeded() {
 }
 await migrateIfNeeded();
 
-// --- In-memory state
+// ===== In-memory state & I/O helpers =====
 let purchases = [];
 let claims    = [];
 
-// --- I/O helpers (atomic writes)
 async function loadData() {
   try {
     const rawP = JSON.parse(await fs.readFile(FILE_PURCHASES, "utf8"));
@@ -60,6 +65,7 @@ async function loadData() {
     claims = Array.isArray(rawC) ? rawC : (rawC.claims || []);
   } catch { claims = []; }
 }
+
 async function saveData() {
   const tmpP = FILE_PURCHASES + ".tmp";
   await fs.writeFile(tmpP, JSON.stringify({ purchases }, null, 2));
@@ -69,22 +75,31 @@ async function saveData() {
   await fs.rename(tmpC, FILE_CLAIMS);
 }
 
-// --- Serialize writes
+// serialize writes
 let writing = Promise.resolve();
 const queue = (fn) => (writing = writing.then(fn, fn));
 
-// --- CORS & body parser
-const allowed = new Set([
+// ===== CORS & body parsing =====
+const allowedSet = new Set([
   "https://presale-happypenis.com",
   "https://www.presale-happypenis.com",
   "https://happypennisofficialpresale.vercel.app",
   "http://localhost:3000",
 ]);
-app.use(cors({ origin: (o, cb) => cb(null, !o || allowed.has(o)), credentials: true }));
+const allowedRegex = /\.vercel\.app$/i;
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (allowedSet.has(origin) || allowedRegex.test(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true
+}));
 app.options("*", cors());
 app.use(express.json());
 
-// --- Presale tiers (file next to server.js)
+// ===== Presale tiers =====
 async function loadTiers() {
   try {
     const tiersData = await fs.readFile(path.join(__dirname, "presale_tiers.json"), "utf8");
@@ -94,6 +109,7 @@ async function loadTiers() {
     return [];
   }
 }
+
 let presaleTiers = [];
 let currentTierIndex = 0;
 
@@ -102,6 +118,7 @@ async function initializeData() {
   await loadData();
   console.log(`✅ Loaded ${presaleTiers.length} presale tiers`);
 }
+
 function calculateTotalRaised() {
   return purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 }
@@ -116,21 +133,23 @@ function updateCurrentTier() {
   currentTierIndex = Math.max(0, presaleTiers.length - 1);
 }
 
-// ----------------- ROUTES -----------------
-
-// Root & health
+// ===== Routes =====
 app.get("/", (req, res) => res.send("Happy Penis API ✓"));
-app.get("/healthz", (req, res) => res.json({ ok: true, time: Date.now() }));
 
-// Current tier
+app.get("/healthz", (req, res) => {
+  res.json({ ok: true, time: Date.now() });
+});
+
+// no-cache στα status/tier για iOS/Safari
 app.get("/tiers", async (req, res) => {
+  res.set("Cache-Control", "no-store");
   if (presaleTiers.length === 0) await initializeData();
   updateCurrentTier();
   res.json(presaleTiers[currentTierIndex]);
 });
 
-// Status
 app.get("/status", (req, res) => {
+  res.set("Cache-Control", "no-store");
   updateCurrentTier();
   res.json({
     raised: calculateTotalRaised(),
@@ -142,7 +161,7 @@ app.get("/status", (req, res) => {
   });
 });
 
-// BUY — idempotent + σωστή αποθήκευση SOL/USDC
+// BUY — idempotent + σωστή αποθήκευση ανά νόμισμα
 app.post("/buy", async (req, res) => {
   const b = req.is("application/json") ? req.body : JSON.parse(req.body || "{}");
   const {
@@ -188,7 +207,6 @@ app.post("/buy", async (req, res) => {
 
       price_usdc_each: Number(price_usdc_each ?? currentTier?.price_usdc ?? 0.00026),
 
-      // ΓΕΜΙΖΟΥΝ ΜΟΝΟ ΤΑ ΠΕΔΙΑ ΤΟΥ ΝΟΜΙΣΜΑΤΟΣ ΠΛΗΡΩΜΗΣ
       total_paid_sol : isSOL  ? Number(total_paid_sol  ?? 0) : 0,
       fee_paid_sol   : isSOL  ? Number(fee_paid_sol    ?? 0) : 0,
       total_paid_usdc: isUSDC ? Number(total_paid_usdc ?? 0) : 0,
@@ -210,7 +228,7 @@ app.post("/buy", async (req, res) => {
   }).catch((e) => { console.error("write-error", e); res.status(500).json({ error: "STORE_FAILED" }); });
 });
 
-// can-claim (single wallet)
+// can-claim (single)
 app.get("/can-claim/:wallet", async (req, res) => {
   const { wallet } = req.params;
   await loadData();
@@ -220,7 +238,7 @@ app.get("/can-claim/:wallet", async (req, res) => {
   res.json({ canClaim: totalTokens > 0 && !anyClaimed, total: totalTokens > 0 ? String(totalTokens) : undefined });
 });
 
-// can-claim bulk
+// can-claim (bulk)
 app.post("/can-claim", async (req, res) => {
   const wallets = (req.body && req.body.wallets) || [];
   const userAgent = req.get("user-agent") || "";
@@ -236,6 +254,11 @@ app.post("/can-claim", async (req, res) => {
     return { wallet: ww, canClaim: total > 0 && !anyClaimed, total: total || undefined };
   });
   res.json(out);
+});
+
+// φιλικό μήνυμα αν κάποιος ανοίξει GET /can-claim
+app.get("/can-claim", (req,res)=>{
+  res.status(405).json({ use: "POST /can-claim { wallets:[...] } or GET /can-claim/:wallet" });
 });
 
 // claim (single-claim ανά wallet)
@@ -277,7 +300,7 @@ app.post("/claim", async (req, res) => {
   }).catch((e) => { console.error("write-error", e); res.status(500).json({ error: "STORE_FAILED" }); });
 });
 
-// --- Debug
+// ===== Debug & exports =====
 app.get("/debug/where", async (req, res) => {
   await loadData();
   res.json({ file: FILE_PURCHASES, count: purchases.length });
@@ -288,7 +311,6 @@ app.get("/debug/list", async (req, res) => {
 });
 app.get("/snapshot", (req, res) => res.json(purchases));
 
-// Export CSV (με fees & price)
 app.get("/export", (req, res) => {
   const header = [
     "id","wallet","token","amount","tier",
@@ -311,13 +333,12 @@ app.get("/export", (req, res) => {
   res.send(header + rows);
 });
 
-// --- One-time cleanup: fix wrong fee fields & normalize numbers
+// ===== One-time cleanup (fees fix) =====
 app.get("/debug/migration-status", async (req, res) => {
   try { await fs.access(MIGRATION_SENTINEL); res.json({ done: true }); }
   catch { res.json({ done: false }); }
 });
 
-// helper: μία φορά και τέλος
 async function runFixFeesOnce() {
   try { await fs.access(MIGRATION_SENTINEL); return { ok: true, alreadyRun: true }; } catch {}
   await loadData();
@@ -345,7 +366,6 @@ async function runFixFeesOnce() {
   return { ok: true, changed, total: purchases.length };
 }
 
-// σκούπα: POST (κυρίως) + GET alias για ευκολία
 app.post("/debug/fix-fees-once", async (req, res) => {
   try { res.json(await runFixFeesOnce()); }
   catch (e) { console.error(e); res.status(500).json({ ok:false, error:String(e) }); }
@@ -355,7 +375,120 @@ app.get("/debug/fix-fees-once", async (req, res) => {
   catch (e) { console.error(e); res.status(500).json({ ok:false, error:String(e) }); }
 });
 
-// --- Start
+// ===== Admin backfill (optional) =====
+function requireAdmin(req, res) {
+  if (!ADMIN_SECRET) return true; // αν δεν έχεις secret, μην μπλοκάρεις
+  if (req.get("x-admin-secret") === ADMIN_SECRET) return true;
+  res.status(401).json({ error:"NO_AUTH" });
+  return false;
+}
+async function rpc(method, params) {
+  const r = await fetch(SOLANA_RPC, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+  });
+  return r.json();
+}
+
+// Backfill μιας υπογραφής (προτείνεται με override_amount για 100% ακρίβεια)
+app.post("/admin/backfill/by-signature", async (req,res)=>{
+  if (!requireAdmin(req,res)) return;
+  const { signature, wallet, force_price_usdc_each, override_amount } = req.body || {};
+  if (!signature || !wallet) return res.status(400).json({ error:"MISSING_FIELDS" });
+
+  const tx = await rpc("getTransaction", [signature, { encoding:"jsonParsed", maxSupportedTransactionVersion:0 }]);
+  const tr = tx?.result;
+  if (!tr) return res.status(404).json({ error:"TX_NOT_FOUND" });
+
+  const feeLamports = tr.meta?.fee || 0;
+  const feeSol = feeLamports / 1e9;
+
+  let token = null, paid_usdc = 0, paid_sol = 0;
+
+  try {
+    const pre  = tr.meta?.preBalances || [];
+    const post = tr.meta?.postBalances || [];
+    const acctKeys = tr.transaction?.message?.accountKeys?.map(k=>k.pubkey || k) || [];
+    const fromIdx = acctKeys.findIndex(a => a===wallet);
+    const toIdx   = acctKeys.findIndex(a => a===TREASURY_WALLET);
+    if (fromIdx>=0 && toIdx>=0) {
+      const diff = (pre[fromIdx]-post[fromIdx]) / 1e9;
+      if (diff>0) { token="SOL"; paid_sol = diff; }
+    }
+  } catch {}
+
+  try {
+    const preT  = tr.meta?.preTokenBalances  || [];
+    const postT = tr.meta?.postTokenBalances || [];
+    const findAcc = (arr, owner, mint)=> arr.find(x => x.owner===owner && x.mint===USDC_MINT);
+    const after  = findAcc(postT, TREASURY_WALLET, USDC_MINT);
+    if (!token && after) {
+      const ui = Number(after.uiTokenAmount?.uiAmountString || after.uiTokenAmount?.uiAmount || 0);
+      if (ui>0) { token="USDC"; paid_usdc = ui; }
+    }
+  } catch {}
+
+  if (!token) return res.status(400).json({ error:"PAYMENT_NOT_DETECTED" });
+
+  await queue(async ()=>{
+    await loadData();
+    const exists = purchases.find(p=>p.transaction_signature===signature);
+    if (exists) { res.json({ ok:true, already:true, purchase: exists }); return; }
+
+    updateCurrentTier();
+    const price = Number(force_price_usdc_each ?? presaleTiers[currentTierIndex]?.price_usdc ?? 0.00026);
+    const amount = override_amount ?? (token==="USDC" ? Math.round(paid_usdc / price) : 0);
+
+    const purchase = {
+      id: purchases.length + 1,
+      wallet: String(wallet).trim(),
+      token,
+      amount: Number(amount),
+      tier: presaleTiers[currentTierIndex]?.tier ?? 1,
+      transaction_signature: signature,
+      timestamp: new Date().toISOString(),
+      claimed: false,
+      price_usdc_each: price,
+      total_paid_sol : token==="SOL"  ? Number(paid_sol.toFixed(9))  : 0,
+      fee_paid_sol   : token==="SOL"  ? Number(feeSol.toFixed(9))    : 0,
+      total_paid_usdc: token==="USDC" ? Number(paid_usdc.toFixed(6)) : 0,
+      fee_paid_usdc  : token==="USDC" ? 0 : 0,
+      user_agent: "admin-backfill"
+    };
+    purchases.push(purchase);
+    await saveData();
+    res.json({ ok:true, purchase });
+  });
+});
+
+// Σάρωση τελευταίων ωρών (π.χ. 24h)
+app.post("/admin/backfill/scan", async (req,res)=>{
+  if (!requireAdmin(req,res)) return;
+  const { wallet, hours=24, limit=50 } = req.body || {};
+  if (!wallet) return res.status(400).json({ error:"MISSING_WALLET" });
+
+  const sigsResp = await rpc("getSignaturesForAddress", [wallet, { limit }]);
+  const sigs = (sigsResp?.result || []).filter(s => s.blockTime && s.blockTime >= Math.floor(Date.now()/1000) - hours*3600);
+
+  const out = { scanned: sigs.length, added: 0, skipped: 0, errors: [] };
+  for (const s of sigs) {
+    try {
+      const r = await fetch(`${req.protocol}://${req.get("host")}/admin/backfill/by-signature`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ signature: s.signature, wallet })
+      });
+      const j = await r.json();
+      if (j?.already) out.skipped++; else if (j?.ok) out.added++; else out.errors.push({ sig:s.signature, j });
+    } catch(e) {
+      out.errors.push({ sig:s.signature, err:String(e) });
+    }
+  }
+  res.json(out);
+});
+
+// ===== Start =====
 (async () => {
   await initializeData();
   app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
