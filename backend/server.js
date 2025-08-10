@@ -186,6 +186,7 @@ app.post('/buy', async (req, res) => {
         fee_paid_sol   : isSOL  ? Number(fee_paid_sol    ?? 0) : 0,
         total_paid_usdc: isUSDC ? Number(total_paid_usdc ?? 0) : 0,
         fee_paid_usdc  : isUSDC ? Number(fee_paid_usdc   ?? 0) : 0,
+        user_agent: userAgent,
       };
 
       if (isSOL && (purchase.fee_paid_usdc || purchase.total_paid_usdc)) {
@@ -219,8 +220,8 @@ app.get('/can-claim/:wallet', async (req, res) => {
 // can-claim bulk
 app.post('/can-claim', async (req, res) => {
   const wallets = (req.body && req.body.wallets) || [];
-  const ua = req.get('user-agent') || '';
-  console.log('📦 /can-claim raw body:', { wallets, ua });
+  const userAgent = req.get('user-agent') || '';
+  console.log('📦 /can-claim raw body:', { wallets, userAgent });
   await loadData();
   const out = wallets.map(w => {
     const ww = String(w).trim();
@@ -236,7 +237,7 @@ app.post('/can-claim', async (req, res) => {
 // claim (single-claim ανά wallet)
 app.post('/claim', async (req, res) => {
   const { wallet, transaction_signature } = req.body;
-  const ua = req.get('user-agent') || '';
+  const userAgent = req.get('user-agent') || '';
   if (!wallet || !transaction_signature) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -261,11 +262,12 @@ app.post('/claim', async (req, res) => {
       total_tokens: totalTokens,
       transaction_signature,
       timestamp: new Date().toISOString(),
+      user_agent: userAgent,
     };
     claims.push(claim);
 
     await saveData();
-    console.log(`🎉 Claimed: ${totalTokens} tokens by ${short(wallet)}, ua=${ua}`);
+    console.log(`🎉 Claimed: ${totalTokens} tokens by ${short(wallet)}, ua=${userAgent}`);
     res.json({ success: true });
   }).catch(e => { console.error('write-error', e); res.status(500).json({ error: 'STORE_FAILED' }); });
 });

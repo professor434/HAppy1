@@ -18,6 +18,7 @@ interface PurchaseRecord {
   fee_paid_usdc: number;
   fee_paid_sol: number;
   price_usdc_each: number;
+  user_agent?: string;
 }
 
 interface TierInfo {
