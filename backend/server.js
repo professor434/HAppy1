@@ -1,10 +1,10 @@
-// server.js — CLEAN
 
 import express from "express";
 import cors from "cors";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+
 
 // --- ESM boilerplate
 const __filename = fileURLToPath(import.meta.url);
@@ -19,11 +19,12 @@ const TREASURY_WALLET  = "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
 const FEE_WALLET       = "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 const short = (w = "") => String(w).slice(0, 6) + "...";
 
-// ==== paths & helpers ====
-const DATA_DIR = process.env.DATA_DIR || '/data';
-const FILE_PURCHASES = path.join(DATA_DIR, 'purchases.json');
-const FILE_CLAIMS    = path.join(DATA_DIR, 'claims.json');
-const MIGRATION_SENTINEL = path.join(DATA_DIR, '.fix_fees_done');
+
+// --- Paths (Railway volume)
+const DATA_DIR        = process.env.DATA_DIR || "/data";
+const FILE_PURCHASES  = path.join(DATA_DIR, "purchases.json");
+const FILE_CLAIMS     = path.join(DATA_DIR, "claims.json");
+const MIGRATION_SENTINEL = path.join(DATA_DIR, ".fix_fees_done");
 
 
 await fs.mkdir(DATA_DIR, { recursive: true });
@@ -116,10 +117,12 @@ function updateCurrentTier() {
 }
 
 // ----------------- ROUTES -----------------
+l
 
 // Root & health
 app.get("/", (req, res) => res.send("Happy Penis API ✓"));
 app.get("/healthz", (req, res) => res.json({ ok: true, time: Date.now() }));
+
 
 // Current tier
 app.get("/tiers", async (req, res) => {
@@ -187,11 +190,13 @@ app.post("/buy", async (req, res) => {
 
       price_usdc_each: Number(price_usdc_each ?? currentTier?.price_usdc ?? 0.00026),
 
+
       // ΓΕΜΙΖΟΥΝ ΜΟΝΟ ΤΑ ΠΕΔΙΑ ΤΟΥ ΝΟΜΙΣΜΑΤΟΣ ΠΛΗΡΩΜΗΣ
       total_paid_sol : isSOL  ? Number(total_paid_sol  ?? 0) : 0,
       fee_paid_sol   : isSOL  ? Number(fee_paid_sol    ?? 0) : 0,
       total_paid_usdc: isUSDC ? Number(total_paid_usdc ?? 0) : 0,
       fee_paid_usdc  : isUSDC ? Number(fee_paid_usdc   ?? 0) : 0,
+
 
       user_agent: userAgent,
     };
@@ -312,23 +317,28 @@ app.get("/export", (req, res) => {
 
 // --- One-time cleanup: fix wrong fee fields & normalize numbers
 
-app.get('/debug/migration-status', async (req, res) => {
-n
+app.get("/debug/migration-status", async (req, res) => {
+
   try { await fs.access(MIGRATION_SENTINEL); res.json({ done: true }); }
   catch { res.json({ done: false }); }
 });
+
+
+// --- helper: μία φορά και τέλος
 
 async function runFixFeesOnce() {
   try { await fs.access(MIGRATION_SENTINEL); return { ok: true, alreadyRun: true }; } catch {}
   await loadData();
   let changed = 0;
   for (const p of purchases) {
-    p.wallet = String(p.wallet||'').trim();
-    p.token  = (p.token === 'USDC') ? 'USDC' : 'SOL';
+
+    p.wallet = String(p.wallet||"").trim();
+    p.token  = (p.token === "USDC") ? "USDC" : "SOL";
     p.amount = Number(p.amount||0);
     p.tier   = Number(p.tier||1);
     p.price_usdc_each = Number(p.price_usdc_each||0.00026);
-    if (p.token === 'SOL') {
+    if (p.token === "SOL") {
+
       if (Number(p.total_paid_usdc)) { p.total_paid_usdc = 0; changed++; }
       if (Number(p.fee_paid_usdc))   { p.fee_paid_usdc   = 0; changed++; }
       p.total_paid_sol = Number(p.total_paid_sol||0);
@@ -341,21 +351,24 @@ async function runFixFeesOnce() {
     }
   }
   await saveData();
-  await fs.writeFile(MIGRATION_SENTINEL, new Date().toISOString(), 'utf8');
+
+  await fs.writeFile(MIGRATION_SENTINEL, new Date().toISOString(), "utf8");
   return { ok: true, changed, total: purchases.length };
 }
 
-app.post('/debug/fix-fees-once', async (req, res) => {
+// υπάρχον POST (μένει ως έχει)
+app.post("/debug/fix-fees-once", async (req, res) => {
   try { res.json(await runFixFeesOnce()); }
-  catch (e) { console.error(e); res.status(500).json({ ok: false, error: String(e) }); }
+  catch (e) { console.error(e); res.status(500).json({ ok:false, error:String(e) }); }
 });
 
-app.get('/debug/fix-fees-once', async (req, res) => {
+// νέο alias GET για ευκολία (τρέχει την ίδια λογική)
+app.get("/debug/fix-fees-once", async (req, res) => {
   try { res.json(await runFixFeesOnce()); }
-  catch (e) { console.error(e); res.status(500).json({ ok: false, error: String(e) }); }
+  catch (e) { console.error(e); res.status(500).json({ ok:false, error:String(e) }); }
 });
 
-// start
+// --- Start
 
 (async () => {
   await initializeData();
