@@ -40,6 +40,19 @@ All shadcn/ui components have been downloaded under `@/components/ui`.
 
 The `@/` path alias points to the `src/` directory
 
+## API Base URL
+
+The frontend reads the `VITE_API_BASE_URL` environment variable to know where to send API requests. It defaults to `/api`.
+
+Without overriding this variable, the frontend will request paths like `/api/status` or `/api/can-claim`, leading to 404 errors when the backend isn't mounted under `/api`.
+When running the backend directly (without a reverse proxy), set the variable to the backend's full URL to avoid those 404s.
+
+Create a `.env.local` file with:
+
+```
+VITE_API_BASE_URL=http://localhost:8080
+```
+
 # Commands
 
 **Install Dependencies**
