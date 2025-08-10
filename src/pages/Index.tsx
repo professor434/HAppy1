@@ -168,24 +168,17 @@ export default function PresalePage() {
       const feePct = BUY_FEE_PERCENTAGE / 100;
 
       let txSignature: string | null = null;
-      let total_paid_usdc: number | null = null;
-      let total_paid_sol: number | null = null;
-      let fee_paid_usdc: number | null = null;
-      let fee_paid_sol: number | null = null;
+      const extras: Record<string, number> = { price_usdc_each: currentTier.price_usdc };
 
       if (paymentToken === "SOL" && publicKey && signTransaction) {
         const solAmount = totalPriceUSDC / SOL_TO_USDC_RATE;
         txSignature = await executeSOLPayment(solAmount, { publicKey, signTransaction });
-        total_paid_usdc = null;
-        total_paid_sol = +solAmount.toFixed(6);
-        fee_paid_usdc = null;
-        fee_paid_sol = +(solAmount * feePct).toFixed(6);
+        extras.total_paid_sol = +solAmount.toFixed(6);
+        extras.fee_paid_sol = +(solAmount * feePct).toFixed(6);
       } else if (paymentToken === "USDC" && publicKey && signTransaction) {
         txSignature = await executeUSDCPayment(totalPriceUSDC, { publicKey, signTransaction });
-        total_paid_usdc = +totalPriceUSDC.toFixed(6);
-        total_paid_sol = null;
-        fee_paid_usdc = +(totalPriceUSDC * feePct).toFixed(6);
-        fee_paid_sol = null;
+        extras.total_paid_usdc = +totalPriceUSDC.toFixed(6);
+        extras.fee_paid_usdc = +(totalPriceUSDC * feePct).toFixed(6);
       } else {
         toast.error("Invalid payment method or wallet not properly connected");
         throw new Error("payment method");
@@ -194,13 +187,14 @@ export default function PresalePage() {
       if (!txSignature) throw new Error("No transaction signature returned");
         (window as typeof window & { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
-      await recordPurchase(
+      const rec = await recordPurchase(
         publicKey.toString(),
         penisAmount,
         paymentToken,
         txSignature,
-        { total_paid_usdc, total_paid_sol, fee_paid_usdc, fee_paid_sol }
+        extras
       );
+      if (!rec) { toast.error("Purchase recorded failed. Try again."); return; }
 
       setTotalRaised(prev => prev + penisAmount);
       setAmount("");
