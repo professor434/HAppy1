@@ -20,18 +20,22 @@ export const TREASURY_WALLET = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3
 export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'); // Για fees
 export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // Official USDC mint
 
-// ✅ RPC endpoint
+// ✅ RPC endpoints (HTTP + WebSocket)
 // Never fallback to api.mainnet-beta.solana.com; always use a dedicated provider.
 const DEFAULT_SOLANA_RPC_URL =
   'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
-export const SOLANA_RPC_URL =
-  import.meta.env.VITE_SOLANA_RPC_URL || DEFAULT_SOLANA_RPC_URL;
 
-export const connection = new Connection(SOLANA_RPC_URL);
+const RPC_HTTP = (import.meta.env.VITE_SOLANA_RPC_URL as string) || DEFAULT_SOLANA_RPC_URL;
+const RPC_WS = (import.meta.env.VITE_SOLANA_WS_URL as string) || RPC_HTTP.replace(/^http/i, 'ws');
+
+export const connection = new Connection(RPC_HTTP, {
+  commitment: 'confirmed',
+  wsEndpoint: RPC_WS,
+  confirmTransactionInitialTimeout: 90_000,
+});
 
 
 export const BUY_FEE_PERCENTAGE = 0.4;
-export const CLAIM_FEE_PERCENTAGE = 0.25;
 
 // === 🧠 HELPERS ===
 export const calculateFee = (amount: number, percentage: number): number =>
@@ -44,11 +48,12 @@ async function signAndSendTransaction(
 ): Promise<TransactionSignature> {
   transaction.feePayer = wallet.publicKey!;
 
-  let latestBlockhash = await connection.getLatestBlockhash('finalize');
+  let latestBlockhash = await connection.getLatestBlockhash('finalized');
   transaction.recentBlockhash = latestBlockhash.blockhash;
 
   let signed = await wallet.signTransaction!(transaction);
-  try {
+
+  const sendAndConfirm = async () => {
     const signature = await connection.sendRawTransaction(signed.serialize());
     const confirmation = await connection.confirmTransaction(
       {
@@ -58,36 +63,33 @@ async function signAndSendTransaction(
       },
       'confirmed'
     );
+    if (confirmation?.value?.err) throw new Error('Transaction error');
+    return signature as TransactionSignature;
+  };
 
-    if (confirmation.value.err) {
-      throw new Error(`Transaction failed: ${confirmation.value.err}`);
-    }
-
-    return signature;
-  } catch (error: unknown) {
-    if (error instanceof Error && error.message.includes('blockhash not found')) {
-      latestBlockhash = await connection.getLatestBlockhash('finalize');
+  try {
+    return await sendAndConfirm();
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('blockhash not found')) {
+      latestBlockhash = await connection.getLatestBlockhash('finalized');
       transaction.recentBlockhash = latestBlockhash.blockhash;
       signed = await wallet.signTransaction!(transaction);
-
-      const signature = await connection.sendRawTransaction(signed.serialize());
-      const confirmation = await connection.confirmTransaction(
-        {
-          signature,
-          blockhash: latestBlockhash.blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-        },
-        'confirmed'
-      );
-
-      if (confirmation.value.err) {
-        throw new Error(`Transaction failed: ${confirmation.value.err}`);
+      try {
+        return await sendAndConfirm();
+      } catch {
+        /* fall through to HTTP polling */
       }
-
-      return signature;
     }
 
-    throw error;
+    const signature = await connection.sendRawTransaction(signed.serialize());
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      const st = await connection.getSignatureStatuses([signature]);
+      const s = st.value?.[0];
+      if (s?.confirmationStatus === 'confirmed' || s?.confirmationStatus === 'finalized') break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return signature as TransactionSignature;
   }
 }
 
@@ -198,7 +200,6 @@ export async function executeUSDCPayment(
 
 // === ✅ CLAIM FEE ===
 export async function executeClaimFeePayment(
-  tokenAmount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey || !wallet.signTransaction) {
