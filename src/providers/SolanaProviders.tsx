@@ -9,7 +9,10 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
   const endpoint = clusterApiUrl("mainnet-beta");
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider autoConnect>{children}</WalletProvider>
+      <WalletProvider wallets={[]} autoConnect>
+        {children}
+      </WalletProvider>
+
     </ConnectionProvider>
   );
 }
