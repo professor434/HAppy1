@@ -29,11 +29,11 @@ const PRESALE_TIERS = [
   { tier: 1, price_usdc: 0.000260, max_tokens: 237500000, duration_days: null },
   { tier: 2, price_usdc: 0.000312, max_tokens: 237500000, duration_days: null },
   { tier: 3, price_usdc: 0.000374, max_tokens: 237500000, duration_days: null },
-  { tier: 4, price_usdc: 0.000449, max_tokens: 237500000, duration_days: 1 },
-  { tier: 5, price_usdc: 0.000539, max_tokens: 237500000, duration_days: 1 },
-  { tier: 6, price_usdc: 0.000647, max_tokens: 237500000, duration_days: 1 },
-  { tier: 7, price_usdc: 0.000776, max_tokens: 237500000, duration_days: 1 },
-  { tier: 8, price_usdc: 0.000931, max_tokens: 237500000, duration_days: 1 }
+  { tier: 4, price_usdc: 0.000449, max_tokens: 237500000, duration_days: 30 },
+  { tier: 5, price_usdc: 0.000539, max_tokens: 237500000, duration_days: 30 },
+  { tier: 6, price_usdc: 0.000647, max_tokens: 237500000, duration_days: 30 },
+  { tier: 7, price_usdc: 0.000776, max_tokens: 237500000, duration_days: 30 },
+  { tier: 8, price_usdc: 0.000931, max_tokens: 237500000, duration_days: 30 }
 ];
 
 const PRESALE_GOAL_USDC = 1100000000;
