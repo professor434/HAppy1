@@ -37,15 +37,6 @@ const FEE_WALLET       = "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 const PRESALE_END_AT   = process.env.PRESALE_END_AT || ""; // ISO string αν θέλεις να κλείσει η presale
 const short = (w = "") => String(w).slice(0, 6) + "...";
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
-
-function requireAdmin(req, res, next) {
-  if (!ADMIN_SECRET) return res.status(403).json({ error: "ADMIN_ONLY" });
-  const k = req.get("x-admin-secret") || req.query.key;
-  if (k !== ADMIN_SECRET) return res.status(403).json({ error: "ADMIN_ONLY" });
-  next();
-}
-
 // ----------- Anti-cache για όλα τα API JSON που αλλάζουν συχνά -----------
 app.set("etag", false);
 app.use((req, res, next) => {
