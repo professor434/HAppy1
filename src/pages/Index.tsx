@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,29 @@ export default function PresalePage() {
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const lastWallet = useRef<string | null>(null);
+
+  const isMobile = () =>
+    typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const hasInjected = () => {
+    if (typeof window === "undefined") return false;
+    const w = window as any;
+    return w.solana?.isPhantom || w.solflare || w.xnft;
+  };
+
+  useEffect(() => {
+    if (isMobile() && hasInjected() && !connected) {
+      connect().catch(() => {});
+    }
+  }, [connected, connect]);
+
+  useEffect(() => {
+    if (connected) {
+      const base = `${window.location.origin}/`;
+      if (window.location.href !== base) {
+        window.history.replaceState({}, document.title, base);
+      }
+    }
+  }, [connected]);
 
   useEffect(() => {
     if (connected && publicKey) {
