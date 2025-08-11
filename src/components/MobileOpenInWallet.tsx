@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-const TARGET = "https://happypennisofficialpresale.vercel.app/"; // σταθερός στόχος
+const TARGET = "https://happypennisofficialpresale.vercel.app"; // σταθερός στόχος
 
 function isInAppUA(ua: string) {
   ua = ua || "";
