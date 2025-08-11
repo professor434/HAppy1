@@ -5,7 +5,7 @@ const DAPP_URL =
   (typeof window !== "undefined" ? window.location.href : "");
 
 function isMobile(ua: string) { return /Android|iPhone|iPad|iPod/i.test(ua || ""); }
-function isInApp(ua: string) { return /Phantom|Solflare|Backpack|xNFT/i.test(ua || ""); }
+function isInApp(ua: string) { return /Phantom|Solflare/i.test(ua || ""); }
 
 function buildLinks(target: string) {
   const enc = encodeURIComponent(target.endsWith("/") ? target : target + "/");
