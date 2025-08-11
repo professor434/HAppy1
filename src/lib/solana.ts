@@ -1,10 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { WalletAdapterProps } from '@solana/wallet-adapter-base';
 import {
-  Connection, PublicKey, Transaction, SystemProgram, TransactionSignature, LAMPORTS_PER_SOL,
+
+  Connection,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  TransactionSignature,
+  LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 import {
-  createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction,
+  createTransferInstruction,
+  getAssociatedTokenAddress,
+  getAccount,
+  createAssociatedTokenAccountInstruction,
+
 } from '@solana/spl-token';
 
 // ====== Env / RPC ======
@@ -19,19 +29,26 @@ const WS_ENDPOINT =
   'wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
 
 
+let connection: Connection | null = null;
+export function getConnection(): Connection {
+  if (!connection) {
+    connection = new Connection(RPC_ENDPOINT, {
+      commitment: 'confirmed',
+      wsEndpoint: WS_ENDPOINT,
+    });
+  }
+  return connection;
+}
 
 // ====== ✅ CONSTANTS (με τα δικά σου, με env fallback) ======
 export const SPL_MINT_ADDRESS: string =
   ENV.VITE_SPL_MINT_ADDRESS || 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'; // Happy Penis SPL
 
-
 const TREASURY_WALLET_STR =
   ENV.VITE_TREASURY_WALLET || '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 
-
 const FEE_WALLET_STR =
   ENV.VITE_FEE_WALLET || 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
-
 
 export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
 export const FEE_WALLET      = new PublicKey(FEE_WALLET_STR);
@@ -53,6 +70,8 @@ async function signAndSendTransaction(
 ): Promise<TransactionSignature> {
 
   if (!wallet?.publicKey) throw new Error('Wallet not connected');
+  const connection = getConnection();
+
 
   // Αν υπάρχει sendTransaction (καλύτερο για κινητά)
   if (typeof (wallet as any).sendTransaction === 'function') {
@@ -60,7 +79,9 @@ async function signAndSendTransaction(
     const sig: TransactionSignature = await send(transaction, connection, {
       skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3,
     });
-    const res = await connection.confirmTransaction(sig, 'finalize');
+
+    const res = await connection.confirmTransaction(sig, 'confirmed');
+
     if (res.value?.err) throw new Error('Transaction failed');
     return sig;
   }
@@ -87,6 +108,9 @@ export async function executeSOLPayment(
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
 
+  const connection = getConnection();
+
+
   const feePct = BUY_FEE_PERCENTAGE / 100;
   const mainAmount = amountSOL * (1 - feePct);
   const feeAmount  = amountSOL * feePct;
@@ -108,6 +132,9 @@ export async function executeUSDCPayment(
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
+
+  const connection = getConnection();
+
 
   const feePct  = BUY_FEE_PERCENTAGE / 100;
   const mainU64 = toUSDCUnits(amountUSDC * (1 - feePct));

@@ -80,26 +80,6 @@ export default function PresalePage() {
     }
   }, [connected]);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FORM_KEY);
-      if (raw) {
-        const { amount: savedAmount, token } = JSON.parse(raw);
-        if (typeof savedAmount === 'number') setAmount(String(savedAmount));
-        if (token === 'SOL' || token === 'USDC') setPaymentToken(token);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    try {
-      const amt = parseFloat(amount);
-      localStorage.setItem(
-        FORM_KEY,
-        JSON.stringify({ amount: isNaN(amt) ? 0 : amt, token: paymentToken })
-      );
-    } catch { /* ignore */ }
-  }, [amount, paymentToken]);
 
   useEffect(() => {
     if (connected && publicKey) {
