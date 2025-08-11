@@ -1,15 +1,16 @@
-import { useMemo } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+/* src/components/CustomWalletButton.tsx */
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
-function isMobileUA() {
-  if (typeof navigator === "undefined") return false;
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+export function CustomWalletButton() {
+  // Χρησιμοποιούμε έτοιμο MultiButton για σωστή επιλογή/σύνδεση/αποσύνδεση + modal
+  return (
+    <div className="relative z-[10000]">
+      <WalletMultiButton className="!bg-gradient-to-r !from-pink-500 !to-purple-500 !text-white !rounded-xl !px-4 !py-2 !h-auto" />
+    </div>
+  );
 }
-function hasInjected() {
-  if (typeof window === "undefined") return false;
-  const w = window as any;
-  return !!(w.solana?.isPhantom || w.solflare);
-}
+
+
 
 export function CustomWalletButton() {
   const {
