@@ -1,43 +1,55 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import React from "react";
+import React, { useMemo } from "react";
 
-const isMobile = () =>
-  typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isMobile = (ua: string) => /Android|iPhone|iPad|iPod/i.test(ua || "");
+const isInApp  = (ua: string) => /Phantom|Solflare/i.test(ua || "");
 
-const hasInjected = () => {
-  if (typeof window === "undefined") return false;
-  if ((window as any).solana?.isPhantom) return true;
-  if ((window as any).solflare) return true;
-  return false;
-};
+function buildLinks(target: string) {
+  const enc = encodeURIComponent(target);
+  return {
+    // Τα https /ul/browse είναι πιο σταθερά, τα scheme ως δεύτερη προσπάθεια
+    phantomHttp:  `https://phantom.app/ul/browse/${enc}`,
+    phantomScheme:`phantom://browse/${enc}`,
+    solflareHttp: `https://solflare.com/ul/v1/browse/${enc}`,
+    solflareScheme:`solflare://browse/${enc}`,
+  };
+}
 
 export default function MobileOpenInWallet() {
-  if (!isMobile() || hasInjected()) return null;
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const show = isMobile(ua) && !isInApp(ua);
+  const target = useMemo(() => (typeof window !== "undefined" ? window.location.href : ""), []);
+  const links  = useMemo(() => buildLinks(target), [target]);
+  if (!show) return null;
 
-  const dappUrl = typeof window !== "undefined" ? window.location.href : "https://happypennisofficialpresale.vercel.app";
-  const phantom  = `https://phantom.app/ul/browse/${encodeURIComponent(dappUrl)}`;
-  const solflare = `https://solflare.com/ul/v1/browse/${encodeURIComponent(dappUrl)}`;
+  const open = (primary: string, fallback: string) => {
+    // 1) άνοιξε πρώτα το https ul/browse (πιο σίγουρο)
+    window.location.href = primary;
+    // 2) μετά από μικρό delay δοκίμασε και scheme
+    setTimeout(() => { window.location.href = fallback; }, 400);
+  };
 
   return (
-    <div style={{
-      position: "fixed", bottom: 16, left: 16, right: 16, zIndex: 9999,
-      background: "rgba(0,0,0,.8)", color: "white", padding: 12, borderRadius: 12, backdropFilter: "blur(6px)",
-    }}>
-      <b>Mobile tip:</b> Open this page <i>inside</i> your wallet for the best experience.
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-        <a
-          href={phantom}
-          style={{ padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, color: "white" }}
-        >
-          Open in Phantom
-        </a>
-        <a
-          href={solflare}
-          style={{ padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, color: "white" }}
-        >
-          Open in Solflare
-        </a>
+    <div className="fixed bottom-3 left-3 right-3 z-50">
+      <div className="rounded-2xl border border-white/10 bg-black/70 backdrop-blur p-3 shadow-lg">
+        <div className="text-sm text-white/90 mb-2">
+          On mobile, open the presale inside your wallet for a reliable connection.
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => open(links.phantomHttp, links.phantomScheme)}
+            className="flex-1 rounded-xl px-4 py-2 bg-violet-600 text-white font-medium"
+          >
+            Open in Phantom
+          </button>
+          <button
+            onClick={() => open(links.solflareHttp, links.solflareScheme)}
+            className="flex-1 rounded-xl px-4 py-2 bg-amber-500 text-black font-medium"
+          >
+            Open in Solflare
+          </button>
+        </div>
       </div>
     </div>
   );
 }
+
