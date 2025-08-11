@@ -28,6 +28,10 @@ const WS_ENDPOINT =
   ENV.SOLANA_WS_URL ||
   'wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
 
+const connection = new Connection(RPC_ENDPOINT, {
+  commitment: 'confirmed',
+  wsEndpoint: WS_ENDPOINT,
+});
 
 let connection: Connection | null = null;
 export function getConnection(): Connection {
