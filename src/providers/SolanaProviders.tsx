@@ -1,24 +1,13 @@
 import { PropsWithChildren } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import "@solana/wallet-adapter-react-ui/styles.css";
 
-const ENV = (import.meta as any)?.env ?? {};
-
-const FALLBACK_HTTP =
-  "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
-
-const endpoint: string =
-  ENV.VITE_SOLANA_RPC_URL || ENV.VITE_RPC_URL || ENV.SOLANA_RPC || FALLBACK_HTTP;
+const RPC = (import.meta as any)?.env?.VITE_SOLANA_RPC_URL as string; // REQUIRED
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      {/* ΠΕΡΝΑΜΕ ΡΗΤΑ ΚΕΝΟ ARRAY ΓΙΑ ΝΑ ΜΗΝ ΣΚΑΣΕΙ ΤΟ .filter */}
-      <WalletProvider wallets={[]} autoConnect onError={(e) => console.error("[wallet]", e)}>
-        <WalletModalProvider>{children}</WalletModalProvider>
-      </WalletProvider>
+    <ConnectionProvider endpoint={RPC}>
+      {/* Wallet Standard only */}
+      <WalletProvider autoConnect>{children}</WalletProvider>
     </ConnectionProvider>
   );
 }
-
