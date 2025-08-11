@@ -7,7 +7,8 @@ import {
 } from "@solana-mobile/wallet-adapter-mobile";
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
-  const endpoint = clusterApiUrl("mainnet-beta");
+  const endpoint = import.meta.env.VITE_RPC_URL || clusterApiUrl("mainnet-beta");
+  const wsEndpoint = import.meta.env.VITE_SOLANA_WS_URL;
   const wallets = useMemo(() => [
     new SolanaMobileWalletAdapter({
       appIdentity: {
@@ -20,7 +21,7 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
   ], []);
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed", wsEndpoint }}>
       <WalletProvider wallets={wallets} autoConnect>
         {children}
       </WalletProvider>

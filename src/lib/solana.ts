@@ -11,8 +11,13 @@ import {
 const ENV = (import.meta as any)?.env ?? {};
 const RPC_ENDPOINT =
   ENV.VITE_RPC_URL || ENV.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
+const WS_ENDPOINT =
+  ENV.VITE_SOLANA_WS_URL || ENV.SOLANA_WS_URL;
 
-export const connection = new Connection(RPC_ENDPOINT, 'confirmed');
+export const connection = new Connection(RPC_ENDPOINT, {
+  commitment: 'confirmed',
+  wsEndpoint: WS_ENDPOINT,
+});
 
 // ====== ✅ CONSTANTS (με τα δικά σου, με env fallback) ======
 export const SPL_MINT_ADDRESS: string =
