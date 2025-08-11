@@ -3,8 +3,8 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-const RAW_HTTP = (import.meta as any)?.env?.VITE_SOLANA_RPC_URL as string | undefined;
-const RAW_WS   = (import.meta as any)?.env?.VITE_SOLANA_WS_URL as string | undefined;
+const RAW_HTTP = (import.meta as { env?: { VITE_SOLANA_RPC_URL?: string } })?.env?.VITE_SOLANA_RPC_URL;
+const RAW_WS   = (import.meta as { env?: { VITE_SOLANA_WS_URL?: string } })?.env?.VITE_SOLANA_WS_URL;
 
 function assertHttps(u?: string) {
   if (!u || !/^https:\/\//i.test(u)) {

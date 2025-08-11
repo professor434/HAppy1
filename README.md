@@ -46,6 +46,10 @@ The frontend reads the `VITE_API_BASE_URL` environment variable to know where to
 
 When running the backend directly (without serving it behind `/api`), set this variable to the backend's full URL to prevent 404 errors on endpoints like `/status` or `/can-claim`.
 
+## Production redirect URL
+
+When a wallet connects inside a mobile in-app browser, the page redirects to `VITE_PROD_URL`. Set this variable in your `.env` files to control the destination URL. It defaults to the official presale site.
+
 Create a `.env.local` file with:
 
 ```
