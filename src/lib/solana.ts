@@ -1,232 +1,153 @@
-import { WalletAdapterProps } from '@solana/wallet-adapter-base';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { WalletAdapterProps } from '@solana/wallet-adapter-base';
 import {
-  Connection,
-  PublicKey,
-  Transaction,
-  SystemProgram,
-  TransactionSignature,
-  LAMPORTS_PER_SOL
+  Connection, PublicKey, Transaction, SystemProgram, TransactionSignature, LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 import {
-  createTransferInstruction,
-  getAssociatedTokenAddress,
-  getAccount,
-  createAssociatedTokenAccountInstruction
+  createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token';
 
-// === ✅ CONSTANTS ===
-export const SPL_MINT_ADDRESS = new PublicKey('GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'); // Happy Penis SPL mint
-export const TREASURY_WALLET = new PublicKey('6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD'); // Εσύ το έχεις ήδη!
-export const FEE_WALLET = new PublicKey('J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'); // Για fees
-export const USDC_MINT_ADDRESS = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // Official USDC mint
-
-// ✅ RPC endpoints (HTTP + WebSocket)
-// Never fallback to api.mainnet-beta.solana.com; always use a dedicated provider.
-const DEFAULT_SOLANA_RPC_URL =
-  'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
-
-const RPC_HTTP = (import.meta.env.VITE_SOLANA_RPC_URL as string) || DEFAULT_SOLANA_RPC_URL;
-const RPC_WS = (import.meta.env.VITE_SOLANA_WS_URL as string) || RPC_HTTP.replace(/^http/i, 'ws');
-
-export const connection = new Connection(RPC_HTTP, {
-  commitment: 'confirmed',
-  wsEndpoint: RPC_WS,
-  confirmTransactionInitialTimeout: 90_000,
-});
+// ====== Env / RPC ======
+const ENV = (import.meta as any)?.env ?? {};
+const RPC_ENDPOINT =
+  ENV.VITE_RPC_URL ||
+  ENV.SOLANA_RPC ||
+  'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
+const WS_ENDPOINT =
+  ENV.VITE_SOLANA_WS_URL ||
+  ENV.SOLANA_WS_URL ||
+  'wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
 
 
-export const BUY_FEE_PERCENTAGE = 0.4;
 
-// === 🧠 HELPERS ===
-export const calculateFee = (amount: number, percentage: number): number =>
-  amount * (percentage / 100);
+// ====== ✅ CONSTANTS (με τα δικά σου, με env fallback) ======
+export const SPL_MINT_ADDRESS: string =
+  ENV.VITE_SPL_MINT_ADDRESS || 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'; // Happy Penis SPL
 
-// Re-sign and resend if the blockhash has expired
+
+const TREASURY_WALLET_STR =
+  ENV.VITE_TREASURY_WALLET || '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
+
+
+const FEE_WALLET_STR =
+  ENV.VITE_FEE_WALLET || 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
+
+
+export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
+export const FEE_WALLET      = new PublicKey(FEE_WALLET_STR);
+
+export const USDC_MINT_ADDRESS = new PublicKey(
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+);
+
+export const BUY_FEE_PERCENTAGE =
+  ENV.VITE_BUY_FEE_PERCENTAGE ? Number(ENV.VITE_BUY_FEE_PERCENTAGE) : 2;
+
+const toLamports   = (sol: number)  => Math.floor(sol * LAMPORTS_PER_SOL);
+const toUSDCUnits  = (u: number)    => Math.floor(u * 1_000_000);
+
+// ====== Mobile-safe send ======
 async function signAndSendTransaction(
   transaction: Transaction,
-  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
+  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
+
+  if (!wallet?.publicKey) throw new Error('Wallet not connected');
+
+  // Αν υπάρχει sendTransaction (καλύτερο για κινητά)
+  if (typeof (wallet as any).sendTransaction === 'function') {
+    const send = (wallet as any).sendTransaction.bind(wallet);
+    const sig: TransactionSignature = await send(transaction, connection, {
+      skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3,
+    });
+    const res = await connection.confirmTransaction(sig, 'finalize');
+    if (res.value?.err) throw new Error('Transaction failed');
+    return sig;
+  }
+
+  // Fallback: χειροκίνητο sign
   transaction.feePayer = wallet.publicKey!;
+  const latest = await connection.getLatestBlockhash('finalized');
+  transaction.recentBlockhash = latest.blockhash;
 
-  let latestBlockhash = await connection.getLatestBlockhash('finalized');
-  transaction.recentBlockhash = latestBlockhash.blockhash;
-
-  let signed = await wallet.signTransaction!(transaction);
-
-  const sendAndConfirm = async () => {
-    const signature = await connection.sendRawTransaction(signed.serialize());
-    const confirmation = await connection.confirmTransaction(
-      {
-        signature,
-        blockhash: latestBlockhash.blockhash,
-        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-      },
-      'confirmed'
-    );
-    if (confirmation?.value?.err) throw new Error('Transaction error');
-    return signature as TransactionSignature;
-  };
-
-  try {
-    return await sendAndConfirm();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('blockhash not found')) {
-      latestBlockhash = await connection.getLatestBlockhash('finalized');
-      transaction.recentBlockhash = latestBlockhash.blockhash;
-      signed = await wallet.signTransaction!(transaction);
-      try {
-        return await sendAndConfirm();
-      } catch {
-        /* fall through to HTTP polling */
-      }
-    }
-
-    const signature = await connection.sendRawTransaction(signed.serialize());
-    const deadline = Date.now() + 90_000;
-    while (Date.now() < deadline) {
-      const st = await connection.getSignatureStatuses([signature]);
-      const s = st.value?.[0];
-      if (s?.confirmationStatus === 'confirmed' || s?.confirmationStatus === 'finalized') break;
-      await new Promise((r) => setTimeout(r, 1500));
-    }
-    return signature as TransactionSignature;
-  }
+  const signed = await wallet.signTransaction!(transaction);
+  const sig = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false, maxRetries: 3 });
+  const res = await connection.confirmTransaction(
+    { signature: sig, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
+    'confirmed'
+  );
+  if (res.value?.err) throw new Error('Transaction failed');
+  return sig;
 }
 
-// === 💸 SOL PAYMENT ===
+// ====== SOL Payment (main + fee) ======
 export async function executeSOLPayment(
-  amount: number,
-  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
+  amountSOL: number,
+  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) {
-    throw new Error('Wallet not properly connected');
-  }
+  if (!wallet.publicKey) throw new Error('Wallet not properly connected');
 
-  const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
-  const mainAmount = amount - feeAmount;
-  const lamportsToSend =
-    Math.floor(mainAmount * LAMPORTS_PER_SOL) +
-    Math.floor(feeAmount * LAMPORTS_PER_SOL);
+  const feePct = BUY_FEE_PERCENTAGE / 100;
+  const mainAmount = amountSOL * (1 - feePct);
+  const feeAmount  = amountSOL * feePct;
 
+  const needed = toLamports(mainAmount + feeAmount) + 5_000;
   const balance = await connection.getBalance(wallet.publicKey);
-  if (balance < lamportsToSend + 5000) {
-    throw new Error('Insufficient SOL balance.');
-  }
+  if (balance < needed) throw new Error('Insufficient SOL balance.');
 
-  const transaction = new Transaction();
-  transaction.add(
-    SystemProgram.transfer({
-      fromPubkey: wallet.publicKey,
-      toPubkey: TREASURY_WALLET,
-      lamports: Math.floor(mainAmount * LAMPORTS_PER_SOL),
-    }),
-    SystemProgram.transfer({
-      fromPubkey: wallet.publicKey,
-      toPubkey: FEE_WALLET,
-      lamports: Math.floor(feeAmount * LAMPORTS_PER_SOL),
-    })
+  const tx = new Transaction().add(
+    SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: TREASURY_WALLET, lamports: toLamports(mainAmount) }),
+    SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET,      lamports: toLamports(feeAmount)  }),
   );
-  return signAndSendTransaction(transaction, wallet);
+  return signAndSendTransaction(tx, wallet);
 }
 
-// === 💰 USDC PAYMENT ===
+// ====== USDC Payment (main + fee) ======
 export async function executeUSDCPayment(
-  amount: number,
-  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
+  amountUSDC: number,
+  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) {
-    throw new Error('Wallet not properly connected');
+  if (!wallet.publicKey) throw new Error('Wallet not properly connected');
+
+  const feePct  = BUY_FEE_PERCENTAGE / 100;
+  const mainU64 = toUSDCUnits(amountUSDC * (1 - feePct));
+  const feeU64  = toUSDCUnits(amountUSDC * feePct);
+
+  const owner  = wallet.publicKey;
+  const from   = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, owner);
+  const toMain = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, TREASURY_WALLET);
+  const toFee  = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, FEE_WALLET);
+
+  const tx = new Transaction();
+  try { await getAccount(connection, toMain); } catch {
+    tx.add(createAssociatedTokenAccountInstruction(owner, toMain, TREASURY_WALLET, USDC_MINT_ADDRESS));
   }
-
-  const fromTokenAccount = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, wallet.publicKey);
-
-  try {
-    await getAccount(connection, fromTokenAccount);
-  } catch {
-    throw new Error('No USDC token account. Please fund your wallet with USDC.');
+  try { await getAccount(connection, toFee); } catch {
+    tx.add(createAssociatedTokenAccountInstruction(owner, toFee, FEE_WALLET, USDC_MINT_ADDRESS));
   }
+  if (mainU64 > 0) tx.add(createTransferInstruction(from, toMain, owner, mainU64));
+  if (feeU64  > 0) tx.add(createTransferInstruction(from, toFee,  owner, feeU64));
 
-  const feeAmount = calculateFee(amount, BUY_FEE_PERCENTAGE);
-  const mainAmount = amount - feeAmount;
-
-  const adjustedMain = Math.floor(mainAmount * 10 ** 6);
-  const adjustedFee = Math.floor(feeAmount * 10 ** 6);
-
-  const toMainTokenAccount = await getAssociatedTokenAddress(
-    USDC_MINT_ADDRESS,
-    TREASURY_WALLET,
-    true
-  );
-  const toFeeTokenAccount = await getAssociatedTokenAddress(
-    USDC_MINT_ADDRESS,
-    FEE_WALLET,
-    true
-  );
-
-  const transaction = new Transaction();
-
-  try {
-    await getAccount(connection, toMainTokenAccount);
-  } catch {
-    transaction.add(
-      createAssociatedTokenAccountInstruction(
-        wallet.publicKey,
-        toMainTokenAccount,
-        TREASURY_WALLET,
-        USDC_MINT_ADDRESS
-      )
-    );
-  }
-
-  try {
-    await getAccount(connection, toFeeTokenAccount);
-  } catch {
-    transaction.add(
-      createAssociatedTokenAccountInstruction(
-        wallet.publicKey,
-        toFeeTokenAccount,
-        FEE_WALLET,
-        USDC_MINT_ADDRESS
-      )
-    );
-  }
-
-  transaction.add(
-    createTransferInstruction(fromTokenAccount, toMainTokenAccount, wallet.publicKey, adjustedMain),
-    createTransferInstruction(fromTokenAccount, toFeeTokenAccount, wallet.publicKey, adjustedFee)
-  );
-  return signAndSendTransaction(transaction, wallet);
+  return signAndSendTransaction(tx, wallet);
 }
 
-// === ✅ CLAIM FEE ===
+// ====== Claim Fee (flat SOL) ======
 export async function executeClaimFeePayment(
-  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'>
+
+  _tokenAmount: number,
+  wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
+
 ): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) {
-    throw new Error('Wallet not connected');
-  }
+  if (!wallet.publicKey) throw new Error('Wallet not properly connected');
+  const claimFeeSOL = ENV.VITE_CLAIM_FEE_SOL ? Number(ENV.VITE_CLAIM_FEE_SOL) : 0.0005;
 
-  const feeInSol = 0.002;
-  const lamports = Math.floor(feeInSol * LAMPORTS_PER_SOL);
-  const balance = await connection.getBalance(wallet.publicKey);
-
-  if (balance < lamports + 5000) {
-    throw new Error('Insufficient balance for claim fee.');
-  }
-
-  const transaction = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: wallet.publicKey,
-      toPubkey: FEE_WALLET,
-      lamports,
-    })
+  const tx = new Transaction().add(
+    SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET, lamports: toLamports(claimFeeSOL) })
   );
-  return signAndSendTransaction(transaction, wallet);
+  return signAndSendTransaction(tx, wallet);
 }
 
-// === 🔑 PUBLIC KEY FORMATTER ===
-export function formatPublicKey(key: string | PublicKey) {
-  if (!key) return '';
-  const str = typeof key === 'string' ? key : key.toBase58();
-  return `${str.slice(0, 6)}...${str.slice(-6)}`;
+export function formatPublicKey(k: string | PublicKey) {
+  const s = typeof k === 'string' ? k : k.toBase58();
+  return `${s.slice(0, 6)}...${s.slice(-6)}`;
 }

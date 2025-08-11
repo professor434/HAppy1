@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Button } from "@/components/ui/button";
@@ -29,11 +30,11 @@ const PRESALE_TIERS = [
   { tier: 1, price_usdc: 0.000260, max_tokens: 237500000, duration_days: null },
   { tier: 2, price_usdc: 0.000312, max_tokens: 237500000, duration_days: null },
   { tier: 3, price_usdc: 0.000374, max_tokens: 237500000, duration_days: null },
-  { tier: 4, price_usdc: 0.000449, max_tokens: 237500000, duration_days: 1 },
-  { tier: 5, price_usdc: 0.000539, max_tokens: 237500000, duration_days: 1 },
-  { tier: 6, price_usdc: 0.000647, max_tokens: 237500000, duration_days: 1 },
-  { tier: 7, price_usdc: 0.000776, max_tokens: 237500000, duration_days: 1 },
-  { tier: 8, price_usdc: 0.000931, max_tokens: 237500000, duration_days: 1 }
+  { tier: 4, price_usdc: 0.000449, max_tokens: 237500000, duration_days: 30 },
+  { tier: 5, price_usdc: 0.000539, max_tokens: 237500000, duration_days: 30 },
+  { tier: 6, price_usdc: 0.000647, max_tokens: 237500000, duration_days: 30 },
+  { tier: 7, price_usdc: 0.000776, max_tokens: 237500000, duration_days: 30 },
+  { tier: 8, price_usdc: 0.000931, max_tokens: 237500000, duration_days: 30 }
 ];
 
 const GOAL_TOKENS = PRESALE_TIERS.reduce((s, t) => s + (t.max_tokens || t.limit || 0), 0);
@@ -55,6 +56,29 @@ export default function PresalePage() {
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const lastWallet = useRef<string | null>(null);
+
+  const isMobile = () =>
+    typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const hasInjected = () => {
+    if (typeof window === "undefined") return false;
+    const w = window as any;
+    return w.solana?.isPhantom || w.solflare;
+  };
+
+  useEffect(() => {
+    if (isMobile() && hasInjected() && !connected) {
+      connect().catch(() => {});
+    }
+  }, [connected, connect]);
+
+  useEffect(() => {
+    if (connected) {
+      const target = "https://happypennisofficialpresale.vercel.app/";
+      if (window.location.href !== target) {
+        window.location.href = target;
+      }
+    }
+  }, [connected]);
 
   useEffect(() => {
     try {
