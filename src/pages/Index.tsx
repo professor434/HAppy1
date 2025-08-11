@@ -61,7 +61,7 @@ export default function PresalePage() {
   const hasInjected = () => {
     if (typeof window === "undefined") return false;
     const w = window as any;
-    return w.solana?.isPhantom || w.solflare || w.xnft;
+    return w.solana?.isPhantom || w.solflare;
   };
 
   useEffect(() => {
@@ -72,9 +72,9 @@ export default function PresalePage() {
 
   useEffect(() => {
     if (connected) {
-      const base = `${window.location.origin}/`;
-      if (window.location.href !== base) {
-        window.history.replaceState({}, document.title, base);
+      const target = "https://happypennisofficialpresale.vercel.app/";
+      if (window.location.href !== target) {
+        window.location.href = target;
       }
     }
   }, [connected]);
