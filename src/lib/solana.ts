@@ -1,10 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { WalletAdapterProps } from '@solana/wallet-adapter-base';
 import {
-  Connection, PublicKey, Transaction, SystemProgram, TransactionSignature, LAMPORTS_PER_SOL,
+  Connection,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  TransactionSignature,
+  LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 import {
-  createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction,
+  createTransferInstruction,
+  getAssociatedTokenAddress,
+  getAccount,
+  createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token';
 
 // ====== Env / RPC ======
@@ -18,10 +26,16 @@ const WS_ENDPOINT =
   ENV.SOLANA_WS_URL ||
   'wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
 
-export const connection = new Connection(RPC_ENDPOINT, {
-  commitment: 'confirmed',
-  wsEndpoint: WS_ENDPOINT,
-});
+let connection: Connection | null = null;
+export function getConnection(): Connection {
+  if (!connection) {
+    connection = new Connection(RPC_ENDPOINT, {
+      commitment: 'confirmed',
+      wsEndpoint: WS_ENDPOINT,
+    });
+  }
+  return connection;
+}
 
 // ====== ✅ CONSTANTS (με τα δικά σου, με env fallback) ======
 export const SPL_MINT_ADDRESS: string =
@@ -52,6 +66,7 @@ async function signAndSendTransaction(
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet?.publicKey) throw new Error('Wallet not connected');
+  const connection = getConnection();
 
   // Αν υπάρχει sendTransaction (καλύτερο για κινητά)
   if (typeof (wallet as any).sendTransaction === 'function') {
@@ -85,6 +100,7 @@ export async function executeSOLPayment(
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
+  const connection = getConnection();
 
   const feePct = BUY_FEE_PERCENTAGE / 100;
   const mainAmount = amountSOL * (1 - feePct);
@@ -107,6 +123,7 @@ export async function executeUSDCPayment(
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
+  const connection = getConnection();
 
   const feePct  = BUY_FEE_PERCENTAGE / 100;
   const mainU64 = toUSDCUnits(amountUSDC * (1 - feePct));
