@@ -10,9 +10,13 @@ import {
 // ====== Env / RPC ======
 const ENV = (import.meta as any)?.env ?? {};
 const RPC_ENDPOINT =
-  ENV.VITE_RPC_URL || ENV.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
+  ENV.VITE_RPC_URL ||
+  ENV.SOLANA_RPC ||
+  'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
 const WS_ENDPOINT =
-  ENV.VITE_SOLANA_WS_URL || ENV.SOLANA_WS_URL;
+  ENV.VITE_SOLANA_WS_URL ||
+  ENV.SOLANA_WS_URL ||
+  'wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
 
 export const connection = new Connection(RPC_ENDPOINT, {
   commitment: 'confirmed',
