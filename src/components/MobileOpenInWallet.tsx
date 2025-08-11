@@ -14,7 +14,7 @@ const hasInjected = () => {
 export default function MobileOpenInWallet() {
   if (!isMobile() || hasInjected()) return null;
 
-  const dappUrl = typeof window !== "undefined" ? window.location.href : "https://example.com";
+  const dappUrl = typeof window !== "undefined" ? window.location.href : "https://happypennisofficialpresale.vercel.app";
   const phantom  = `https://phantom.app/ul/browse/${encodeURIComponent(dappUrl)}`;
   const solflare = `https://solflare.com/ul/v1/browse/${encodeURIComponent(dappUrl)}`;
 
