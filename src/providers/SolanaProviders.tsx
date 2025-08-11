@@ -3,21 +3,20 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-const DEFAULT_EXTRNODE = "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
-const RPC =
-  ((import.meta as any)?.env?.VITE_SOLANA_RPC_URL as string) || DEFAULT_EXTRNODE;
+const ENV = (import.meta as any)?.env ?? {};
 
-if (!/^https:\/\/solana-mainnet\.rpc\.extrnode\.com\//i.test(RPC)) {
-  throw new Error("VITE_SOLANA_RPC_URL must be an Extrnode HTTPS endpoint.");
-}
+const FALLBACK_HTTP =
+  "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
+
+const endpoint: string =
+  ENV.VITE_SOLANA_RPC_URL || ENV.VITE_RPC_URL || ENV.SOLANA_RPC || FALLBACK_HTTP;
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
   return (
-    <ConnectionProvider endpoint={RPC}>
-      <WalletProvider wallets={[]} autoConnect>
+    <ConnectionProvider endpoint={endpoint}>
+      <WalletProvider autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
 }
-
