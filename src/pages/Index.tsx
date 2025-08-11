@@ -11,6 +11,7 @@ import TierInfoList from "@/components/TierInfoList";
 import ClaimSection from "@/components/ClaimSection";
 import { formatPublicKey, SPL_MINT_ADDRESS } from "@/lib/solana";
 import { usePresale } from "@/hooks/use-presale";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function PresalePage() {
   const {
@@ -32,9 +33,22 @@ export default function PresalePage() {
     goalTokens,
     raisedPercentage,
     isMobile,
+    error,
   } = usePresale();
 
-  if (!currentTier) return null;
+  if (!currentTier) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-white">
+        {isCheckingStatus ? (
+          <Spinner className="text-pink-500" size="lg" />
+        ) : error ? (
+          <p>Failed to load presale data: {error}</p>
+        ) : (
+          <p>Presale data unavailable.</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
