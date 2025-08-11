@@ -1,4 +1,6 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
+
+const TARGET = "https://happypennisofficialpresale.vercel.app/"; // σταθερός στόχος
 
 function isInAppUA(ua: string) {
   ua = ua || "";
@@ -10,10 +12,12 @@ function isMobile(ua: string) {
 function buildBrowseLinks(target: string) {
   const enc = encodeURIComponent(target);
   return {
-    phantomPrimary: `phantom://browse/${enc}`,
-    phantomFallback: `https://phantom.app/ul/browse/${enc}`,
-    solflarePrimary: `solflare://browse/${enc}`,
-    solflareFallback: `https://solflare.com/ul/browse/${enc}`,
+    // Phantom
+    phantomA: `phantom://browse/${enc}`,
+    phantomB: `https://phantom.app/ul/browse/${enc}`,
+    // Solflare
+    solflareA: `solflare://browse/${enc}`,
+    solflareB: `https://solflare.com/ul/browse/${enc}`,
   };
 }
 
@@ -21,23 +25,15 @@ export default function MobileOpenInWallet() {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
   const show = isMobile(ua) && !isInAppUA(ua);
 
-  const target = useMemo(
-    () => (typeof window === "undefined" ? "" : window.location.href),
-    []
-  );
-  const links = useMemo(() => buildBrowseLinks(target), [target]);
+  const links = useMemo(() => buildBrowseLinks(TARGET), []);
 
   if (!show) return null;
 
-  function openPhantom() {
-    const t = setTimeout(() => (window.location.href = links.phantomFallback), 700);
-    window.location.href = links.phantomPrimary;
-    setTimeout(() => clearTimeout(t), 2000);
-  }
-  function openSolflare() {
-    const t = setTimeout(() => (window.location.href = links.solflareFallback), 700);
-    window.location.href = links.solflarePrimary;
-    setTimeout(() => clearTimeout(t), 2000);
+  function openWith(primary: string, fallback: string) {
+    // διπλή προσπάθεια (μερικές φορές το 1ο pattern ανοίγει το "home" του wallet)
+    const t1 = setTimeout(() => (window.location.href = fallback), 700);
+    window.location.href = primary;
+    setTimeout(() => clearTimeout(t1), 2000);
   }
 
   return (
@@ -48,13 +44,13 @@ export default function MobileOpenInWallet() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={openPhantom}
+            onClick={() => openWith(links.phantomA, links.phantomB)}
             className="flex-1 rounded-xl px-4 py-2 bg-violet-600 text-white font-medium"
           >
             Open in Phantom
           </button>
           <button
-            onClick={openSolflare}
+            onClick={() => openWith(links.solflareA, links.solflareB)}
             className="flex-1 rounded-xl px-4 py-2 bg-amber-500 text-black font-medium"
           >
             Open in Solflare
