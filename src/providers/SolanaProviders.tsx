@@ -1,36 +1,16 @@
-
-import { PropsWithChildren, useMemo } from "react";
+import { PropsWithChildren } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import {
-  SolanaMobileWalletAdapter,
-  createDefaultAuthorizationResultCache,
-} from "@solana-mobile/wallet-adapter-mobile";
+import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import "@solana/wallet-adapter-react-ui/styles.css";
+
+const RPC = import.meta.env.VITE_SOLANA_RPC_URL as string;
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
-
-  const endpoint =
-    import.meta.env.VITE_RPC_URL ||
-    import.meta.env.SOLANA_RPC ||
-    "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2";
-  const wsEndpoint =
-    import.meta.env.VITE_SOLANA_WS_URL ||
-    "wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2";
-  const wallets = useMemo(() => [
-    new SolanaMobileWalletAdapter({
-      appIdentity: {
-        name: "Happy Penis Presale",
-        uri: typeof window !== "undefined" ? window.location.origin : "https://happypennisofficialpresale.vercel.app",
-      },
-      cluster: "",
-      authorizationResultCache: createDefaultAuthorizationResultCache(),
-    }),
-  ], []);
-
   return (
-    <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed", wsEndpoint }}>
-
-      <WalletProvider wallets={wallets} autoConnect>
-        {children}
+    <ConnectionProvider endpoint={RPC}>
+      {/* Wallet Standard only */}
+      <WalletProvider autoConnect>
+        <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
