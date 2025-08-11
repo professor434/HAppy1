@@ -37,8 +37,9 @@ const PRESALE_TIERS = [
   { tier: 8, price_usdc: 0.000931, max_tokens: 237500000, duration_days: 30 }
 ];
 
-const PRESALE_GOAL_USDC = 1100000000;
+const GOAL_TOKENS = PRESALE_TIERS.reduce((s, t) => s + (t.max_tokens || t.limit || 0), 0);
 const SOL_TO_USDC_RATE = 170;
+const FORM_KEY = "presale:form:v1";
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
@@ -78,6 +79,7 @@ export default function PresalePage() {
       }
     }
   }, [connected]);
+
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -257,10 +259,10 @@ export default function PresalePage() {
     setIsClaimPending(true);
     try {
       const tokenAmount = parseFloat(claimableTokens.total);
-      const txSignature = await executeClaimFeePayment(tokenAmount, { publicKey, signTransaction });
+      const txSignature = await executeClaimFeePayment({ publicKey, signTransaction });
       if (!txSignature) throw new Error("Claim fee payment failed");
-      const success = await recordClaim(publicKey.toString(), txSignature);
-      if (!success) throw new Error("Failed to record claim on server");
+      const resp = await recordClaim({ wallet: publicKey.toString(), transaction_signature: txSignature });
+      if (!resp?.success) throw new Error("Failed to record claim on server");
       uiToast({ title: "Claim Successful!", description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens` });
       setClaimableTokens({ ...claimableTokens, canClaim: false });
       } catch (error: unknown) {
@@ -271,7 +273,7 @@ export default function PresalePage() {
       }
     };
 
-  const raisedPercentage = (totalRaised / PRESALE_GOAL_USDC) * 100;
+  const raisedPercentage = (totalRaised / GOAL_TOKENS) * 100;
 
   return (
     <>
@@ -348,7 +350,7 @@ export default function PresalePage() {
               <Progress value={Math.min(100, raisedPercentage)} className="h-2" />
               <div className="flex justify-between text-xs text-gray-400">
                 <span>{totalRaised.toLocaleString()} PENIS</span>
-                <span>{PRESALE_GOAL_USDC.toLocaleString()} PENIS</span>
+                <span>{GOAL_TOKENS.toLocaleString()} PENIS</span>
               </div>
             </div>
 

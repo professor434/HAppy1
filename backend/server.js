@@ -56,6 +56,7 @@ app.use((req, res, next) => {
   next();
 });
 
+
 // ----------- Data paths (Railway volume) -----------
 const DATA_DIR           = process.env.DATA_DIR || "/data";
 const FILE_PURCHASES     = path.join(DATA_DIR, "purchases.json");
@@ -338,10 +339,12 @@ app.get("/debug/list", async (req, res) => {
   await loadData();
   res.json(purchases.slice(-10));
 });
-app.get("/snapshot", (req, res) => res.json(purchases));
+app.get("/snapshot", requireAdmin, (req, res) => res.json(purchases));
 
 // export CSV
-app.get("/export", (req, res) => {
+
+app.get("/export", requireAdmin, (req, res) => {
+
   const header = [
     "id","wallet","token","amount","tier",
     "transaction_signature","timestamp","claimed",

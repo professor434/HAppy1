@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { WalletAdapterProps } from '@solana/wallet-adapter-base';
 import {
+
   Connection,
   PublicKey,
   Transaction,
@@ -13,6 +14,7 @@ import {
   getAssociatedTokenAddress,
   getAccount,
   createAssociatedTokenAccountInstruction,
+
 } from '@solana/spl-token';
 
 // ====== Env / RPC ======
@@ -25,6 +27,7 @@ const WS_ENDPOINT =
   ENV.VITE_SOLANA_WS_URL ||
   ENV.SOLANA_WS_URL ||
   'wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
+
 
 let connection: Connection | null = null;
 export function getConnection(): Connection {
@@ -65,8 +68,10 @@ async function signAndSendTransaction(
   transaction: Transaction,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
+
   if (!wallet?.publicKey) throw new Error('Wallet not connected');
   const connection = getConnection();
+
 
   // Αν υπάρχει sendTransaction (καλύτερο για κινητά)
   if (typeof (wallet as any).sendTransaction === 'function') {
@@ -74,7 +79,9 @@ async function signAndSendTransaction(
     const sig: TransactionSignature = await send(transaction, connection, {
       skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3,
     });
+
     const res = await connection.confirmTransaction(sig, 'confirmed');
+
     if (res.value?.err) throw new Error('Transaction failed');
     return sig;
   }
@@ -100,7 +107,9 @@ export async function executeSOLPayment(
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
+
   const connection = getConnection();
+
 
   const feePct = BUY_FEE_PERCENTAGE / 100;
   const mainAmount = amountSOL * (1 - feePct);
@@ -123,7 +132,9 @@ export async function executeUSDCPayment(
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
+
   const connection = getConnection();
+
 
   const feePct  = BUY_FEE_PERCENTAGE / 100;
   const mainU64 = toUSDCUnits(amountUSDC * (1 - feePct));
@@ -149,8 +160,10 @@ export async function executeUSDCPayment(
 
 // ====== Claim Fee (flat SOL) ======
 export async function executeClaimFeePayment(
+
   _tokenAmount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
+
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
   const claimFeeSOL = ENV.VITE_CLAIM_FEE_SOL ? Number(ENV.VITE_CLAIM_FEE_SOL) : 0.0005;

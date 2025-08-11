@@ -1,3 +1,4 @@
+
 import { PropsWithChildren, useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import {
@@ -6,6 +7,7 @@ import {
 } from "@solana-mobile/wallet-adapter-mobile";
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
+
   const endpoint =
     import.meta.env.VITE_RPC_URL ||
     import.meta.env.SOLANA_RPC ||
@@ -26,6 +28,7 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
 
   return (
     <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed", wsEndpoint }}>
+
       <WalletProvider wallets={wallets} autoConnect>
         {children}
       </WalletProvider>
