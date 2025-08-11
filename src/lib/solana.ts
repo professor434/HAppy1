@@ -1,25 +1,30 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { WalletAdapterProps } from '@solana/wallet-adapter-base';
-import {
-  Connection, PublicKey, Transaction, SystemProgram, TransactionSignature, LAMPORTS_PER_SOL,
-} from '@solana/web3.js';
-import {
-  createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction,
-} from '@solana/spl-token';
+import { Connection, PublicKey, Transaction, SystemProgram, TransactionSignature, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 
-const ENV: any = (import.meta as any)?.env ?? {};
-const RPC_HTTP = String(ENV.VITE_SOLANA_RPC_URL ?? "").trim();
-const RPC_WS   = String(ENV.VITE_SOLANA_WS_URL ?? (RPC_HTTP ? RPC_HTTP.replace(/^http(s?):/, "ws$1:") : "")).trim();
+const ENV = (import.meta as any)?.env ?? {};
+const trim = (s?: string) => (s ?? '').toString().trim();
 
-if (!/^https?:\/\//.test(RPC_HTTP)) {
-  throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
+// ---- Normalize RPC endpoints (accept accidental ws/wss and fix) ----
+const RAW_HTTP = trim(ENV.VITE_SOLANA_RPC_URL || ENV.SOLANA_RPC || ENV.VITE_SOLANA_RPC_HTTP);
+let RPC_HTTP = RAW_HTTP.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:');
+if (!/^https?:\/\//i.test(RPC_HTTP)) {
+  throw new Error('VITE_SOLANA_RPC_URL must be a valid https:// endpoint');
 }
 
+const RAW_WS = trim(ENV.VITE_SOLANA_WS_URL);
+let RPC_WS = RAW_WS || RPC_HTTP.replace(/^http/i, 'ws');
+RPC_WS = RPC_WS.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:');
+
 export const connection = new Connection(RPC_HTTP, {
-  commitment: "confirmed",
-  wsEndpoint: RPC_WS || undefined,
-  confirmTransactionInitialTimeout: 120_000,
+  commitment: 'confirmed',
+  wsEndpoint: RPC_WS,
+  confirmTransactionInitialTimeout: 90_000,
 });
+
+// …(τα υπόλοιπα του αρχείου όπως τα έχεις)
+
 
 export const SPL_MINT_ADDRESS = "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 export const TREASURY_WALLET  = new PublicKey("6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD");
