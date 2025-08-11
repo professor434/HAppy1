@@ -284,7 +284,10 @@ export default function PresalePage() {
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
-          backgroundAttachment: "fixed",
+          backgroundAttachment: /iPhone|iPad|iPod/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "")
+  ? "scroll"
+  : "fixed",
+
         }}
       >
         <div className="fixed bottom-4 right-4 flex gap-2">
