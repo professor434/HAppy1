@@ -18,20 +18,20 @@ const WS_ENDPOINT =
   ENV.SOLANA_WS_URL ||
   'wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834787a11ae2';
 
-export const connection = new Connection(RPC_ENDPOINT, {
-  commitment: 'confirmed',
-  wsEndpoint: WS_ENDPOINT,
-});
+
 
 // ====== ✅ CONSTANTS (με τα δικά σου, με env fallback) ======
 export const SPL_MINT_ADDRESS: string =
   ENV.VITE_SPL_MINT_ADDRESS || 'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'; // Happy Penis SPL
 
+
 const TREASURY_WALLET_STR =
   ENV.VITE_TREASURY_WALLET || '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD';
 
+
 const FEE_WALLET_STR =
   ENV.VITE_FEE_WALLET || 'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn';
+
 
 export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
 export const FEE_WALLET      = new PublicKey(FEE_WALLET_STR);
@@ -51,6 +51,7 @@ async function signAndSendTransaction(
   transaction: Transaction,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
+
   if (!wallet?.publicKey) throw new Error('Wallet not connected');
 
   // Αν υπάρχει sendTransaction (καλύτερο για κινητά)
@@ -59,7 +60,7 @@ async function signAndSendTransaction(
     const sig: TransactionSignature = await send(transaction, connection, {
       skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3,
     });
-    const res = await connection.confirmTransaction(sig, 'confirmed');
+    const res = await connection.confirmTransaction(sig, 'finalize');
     if (res.value?.err) throw new Error('Transaction failed');
     return sig;
   }
@@ -132,8 +133,10 @@ export async function executeUSDCPayment(
 
 // ====== Claim Fee (flat SOL) ======
 export async function executeClaimFeePayment(
+
   _tokenAmount: number,
   wallet: Pick<WalletAdapterProps, 'publicKey' | 'signTransaction'> & { sendTransaction?: any }
+
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error('Wallet not properly connected');
   const claimFeeSOL = ENV.VITE_CLAIM_FEE_SOL ? Number(ENV.VITE_CLAIM_FEE_SOL) : 0.0005;
