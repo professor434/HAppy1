@@ -1,38 +1,34 @@
-// src/components/MobileOpenInWallet.tsx
 import React, { useMemo } from "react";
 
-const isMobile = () =>
-  typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const DAPP_URL =
+  (import.meta as any)?.env?.VITE_DAPP_URL ||
+  (typeof window !== "undefined" ? window.location.href : "");
 
-const isInApp = () => {
-  const w = typeof window !== "undefined" ? (window as any) : {};
-  return !!(w?.solana?.isPhantom || w?.solflare || w?.xnft);
-};
+function isMobile(ua: string) { return /Android|iPhone|iPad|iPod/i.test(ua || ""); }
+function isInApp(ua: string) { return /Phantom|Solflare|Backpack|xNFT/i.test(ua || ""); }
 
-function makeLinks(target: string) {
-  const enc = encodeURIComponent(target);
+function buildLinks(target: string) {
+  const enc = encodeURIComponent(target.endsWith("/") ? target : target + "/");
   return {
-    phantomPrimary: `phantom://browse/${enc}`,
-    phantomFallback: `https://phantom.app/ul/browse/${enc}`,
-    solflarePrimary: `solflare://browse/${enc}`,
-    solflareFallback: `https://solflare.com/ul/browse/${enc}`,
+    phantomPrimary: `phantom://browse/${enc}#autoconnect=1`,
+    phantomFallback: `https://phantom.app/ul/browse/${enc}#autoconnect=1`,
+    solflarePrimary: `solflare://browse/${enc}#autoconnect=1`,
+    solflareFallback: `https://solflare.com/ul/v1/browse/${enc}#autoconnect=1`,
   };
 }
 
 export default function MobileOpenInWallet() {
-  const target = useMemo(() => (typeof window !== "undefined" ? window.location.href : ""), []);
-  const links = useMemo(() => makeLinks(target), [target]);
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const show = isMobile(ua) && !isInApp(ua);
 
-  if (!isMobile() || isInApp()) return null;
+  const target = useMemo(() => DAPP_URL, []);
+  const links = useMemo(() => buildLinks(target), [target]);
 
-  const openPhantom = () => {
-    const t = setTimeout(() => (window.location.href = links.phantomFallback), 600);
-    window.location.href = links.phantomPrimary;
-    setTimeout(() => clearTimeout(t), 2000);
-  };
-  const openSolflare = () => {
-    const t = setTimeout(() => (window.location.href = links.solflareFallback), 600);
-    window.location.href = links.solflarePrimary;
+  if (!show) return null;
+
+  const jump = (primary: string, fallback: string) => {
+    const t = setTimeout(() => (window.location.href = fallback), 700);
+    window.location.href = primary;
     setTimeout(() => clearTimeout(t), 2000);
   };
 
@@ -40,19 +36,15 @@ export default function MobileOpenInWallet() {
     <div className="fixed bottom-3 left-3 right-3 z-50">
       <div className="rounded-2xl border border-white/10 bg-black/70 backdrop-blur p-3 shadow-lg">
         <div className="text-sm text-white/90 mb-2">
-          On mobile, open this presale inside your wallet for a reliable connection.
+          On mobile, open this presale <b>inside your wallet</b> for a reliable connection.
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={openPhantom}
-            className="flex-1 rounded-xl px-4 py-2 bg-violet-600 text-white font-medium"
-          >
+          <button onClick={() => jump(links.phantomPrimary, links.phantomFallback)}
+                  className="flex-1 rounded-xl px-4 py-2 bg-violet-600 text-white font-medium">
             Open in Phantom
           </button>
-          <button
-            onClick={openSolflare}
-            className="flex-1 rounded-xl px-4 py-2 bg-amber-500 text-black font-medium"
-          >
+          <button onClick={() => jump(links.solflarePrimary, links.solflareFallback)}
+                  className="flex-1 rounded-xl px-4 py-2 bg-amber-500 text-black font-medium">
             Open in Solflare
           </button>
         </div>
