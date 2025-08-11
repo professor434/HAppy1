@@ -5,17 +5,14 @@ import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, Tr
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
 // ===== RPC (HTTPS + WSS) =====
+const DEFAULT_RPC_HTTP = "https://api.mainnet-beta.solana.com";
 const RAW_HTTP = (import.meta as any)?.env?.VITE_SOLANA_RPC_URL || "";
 const RAW_WS   = (import.meta as any)?.env?.VITE_SOLANA_WS_URL || "";
 
-function assertHttps(u: string) {
-  if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
+function sanitizeHttp(u: string) {
+  return /^https:\/\//i.test(u.trim()) ? u.trim() : DEFAULT_RPC_HTTP;
 }
-const RPC_HTTP = (() => {
-  const u = String(RAW_HTTP).trim();
-  assertHttps(u);
-  return u;
-})();
+const RPC_HTTP = sanitizeHttp(String(RAW_HTTP));
 const RPC_WS   = RAW_WS ? String(RAW_WS).trim() : RPC_HTTP.replace(/^https/i, "wss");
 
 export const connection = new Connection(RPC_HTTP, {

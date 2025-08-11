@@ -143,8 +143,14 @@ function updateCurrentTier() {
 app.get("/", (req, res) => res.send("Happy Penis API ✓"));
 app.get("/healthz", (req, res) => res.json({ ok: true, time: Date.now() }));
 
-// current tier (ένα αντικείμενο)
+// full tier list
 app.get("/tiers", async (req, res) => {
+  if (presaleTiers.length === 0) await initializeData();
+  res.json(presaleTiers);
+});
+
+// current tier (single object)
+app.get("/current-tier", async (req, res) => {
   if (presaleTiers.length === 0) await initializeData();
   updateCurrentTier();
   res.json(presaleTiers[currentTierIndex] || {});

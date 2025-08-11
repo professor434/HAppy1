@@ -2,12 +2,14 @@
 
 // Base URL (Railway) με δυνατότητα override από Vercel env
 const RAW =
-  (import.meta as any)?.env?.VITE_API_BASE_URL ||
+  (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ||
   "https://happy-pennis.up.railway.app";
 export const API_BASE_URL = String(RAW).replace(/\/+$/, "");
 
 // για debug στο browser
-if (typeof window !== "undefined") (window as any).__API_BASE__ = API_BASE_URL;
+if (typeof window !== "undefined") {
+  (window as unknown as { __API_BASE__?: string }).__API_BASE__ = API_BASE_URL;
+}
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -24,7 +26,9 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       try {
         msg = await res.text();
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
     throw new Error(msg);
   }
@@ -34,8 +38,8 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
 async function tryAlt<T>(fn: () => Promise<T>, alt: () => Promise<T>) {
   try {
     return await fn();
-  } catch (e: any) {
-    const s = String(e?.message || "");
+  } catch (e: unknown) {
+    const s = String((e as { message?: string })?.message || "");
     if (/(404|405)/.test(s)) return await alt();
     throw e;
   }
@@ -43,6 +47,7 @@ async function tryAlt<T>(fn: () => Promise<T>, alt: () => Promise<T>) {
 
 // ---- types ----
 export type TierInfo = { tier: number; price_usdc: number; max_tokens: number; duration_days?: number | null };
+export type PaymentToken = "SOL" | "USDC";
 export type PresaleStatus = {
   raised: number;
   currentTier: TierInfo;
@@ -63,9 +68,11 @@ export type WalletClaimStatus = { wallet: string; canClaim: boolean; total?: str
 
 // ---- API calls ----
 export async function getCurrentTier(): Promise<TierInfo> {
-  return tryAlt<TierInfo>(() => j("/tiers"), () => j("/tiers/1"));
+  const status = await getPresaleStatus();
+  return status.currentTier;
 }
 export const getPresaleStatus = () => j<PresaleStatus>("/status");
+export const getPresaleTiers = () => j<TierInfo[]>("/tiers");
 
 export async function canClaimTokensBulk(wallets: string[]) {
   if (wallets.length === 1) {
@@ -76,7 +83,9 @@ export async function canClaimTokensBulk(wallets: string[]) {
         j("/can-claim", {
           method: "POST",
           body: JSON.stringify({ wallets: [w] }),
-        }).then((arr: any[]) => (arr && arr[0]) || { wallet: w, canClaim: false })
+        }).then((arr: { wallet: string; canClaim: boolean; total?: string | number }[]) =>
+          (arr && arr[0]) || { wallet: w, canClaim: false }
+        )
     );
 
     const map = new Map<string, WalletClaimStatus>();
