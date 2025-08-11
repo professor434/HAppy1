@@ -7,8 +7,7 @@ const RPC = import.meta.env.VITE_SOLANA_RPC_URL as string;
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
   return (
-    <ConnectionProvider endpoint={RPC}>
-      {/* Wallet Standard only */}
+    <ConnectionProvider endpoint={RPC} config={{ wsEndpoint: import.meta.env.VITE_SOLANA_WS_URL as string }}>
       <WalletProvider autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
