@@ -19,9 +19,9 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
     new SolanaMobileWalletAdapter({
       appIdentity: {
         name: "Happy Penis Presale",
-        uri: typeof window !== "undefined" ? window.location.origin : "https://example.com",
+        uri: typeof window !== "undefined" ? window.location.origin : "https://happypennisofficialpresale.vercel.app",
       },
-      cluster: "mainnet-beta",
+      cluster: "",
       authorizationResultCache: createDefaultAuthorizationResultCache(),
     }),
   ], []);
