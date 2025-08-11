@@ -1,29 +1,23 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import type { WalletAdapterProps } from '@solana/wallet-adapter-base';
-import { Connection, PublicKey, Transaction, SystemProgram, TransactionSignature, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
-
-const ENV = (import.meta as any)?.env ?? {};
-const trim = (s?: string) => (s ?? '').toString().trim();
-
-// ---- Normalize RPC endpoints (accept accidental ws/wss and fix) ----
-const RAW_HTTP = trim(ENV.VITE_SOLANA_RPC_URL || ENV.SOLANA_RPC || ENV.VITE_SOLANA_RPC_HTTP);
-let RPC_HTTP = RAW_HTTP.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:');
-if (!/^https?:\/\//i.test(RPC_HTTP)) {
-  throw new Error('VITE_SOLANA_RPC_URL must be a valid https:// endpoint');
+// ====== Env / RPC (robust) ======
+function clean(v: unknown) {
+  return String(v ?? "").replace(/^['"]|['"]$/g, "").trim();
 }
 
-const RAW_WS = trim(ENV.VITE_SOLANA_WS_URL);
-let RPC_WS = RAW_WS || RPC_HTTP.replace(/^http/i, 'ws');
-RPC_WS = RPC_WS.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:');
+const HTTP_ENV = clean(import.meta.env.VITE_SOLANA_RPC_URL ?? (import.meta as any)?.env?.SOLANA_RPC);
+const WS_ENV   = clean(import.meta.env.VITE_SOLANA_WS_URL);
+
+// ίδιο project id της Extrnode
+const FALLBACK_HTTP = "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
+
+const RPC_HTTP = /^https:\/\//i.test(HTTP_ENV) ? HTTP_ENV : FALLBACK_HTTP;
+const RPC_WS   = /^wss:\/\//i.test(WS_ENV) ? WS_ENV : RPC_HTTP.replace(/^https/i, "wss");
 
 export const connection = new Connection(RPC_HTTP, {
-  commitment: 'confirmed',
+  commitment: "confirmed",
   wsEndpoint: RPC_WS,
-  confirmTransactionInitialTimeout: 90_000,
+  confirmTransactionInitialTimeout: 120_000,
 });
 
-// …(τα υπόλοιπα του αρχείου όπως τα έχεις)
 
 
 export const SPL_MINT_ADDRESS = "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
