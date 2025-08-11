@@ -63,9 +63,29 @@ export default function PresalePage() {
     return w.solana?.isPhantom || w.solflare || w.xnft;
   };
 
+  // Auto connect only when we're already inside a wallet webview
   useEffect(() => {
     if (isMobile() && hasInjected() && !connected) connect().catch(() => {});
   }, [connected, connect]);
+
+  // Restore form on load
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FORM_KEY);
+      if (raw) {
+        const { amount: a, token } = JSON.parse(raw);
+        if (typeof a === "number" && a > 0) setAmount(String(a));
+        if (token === "SOL" || token === "USDC") setPaymentToken(token);
+      }
+    } catch {}
+  }, []);
+  // Persist form while typing
+  useEffect(() => {
+    try {
+      const a = parseFloat(amount);
+      localStorage.setItem(FORM_KEY, JSON.stringify({ amount: isNaN(a) ? 0 : a, token: paymentToken }));
+    } catch {}
+  }, [amount, paymentToken]);
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -84,6 +104,7 @@ export default function PresalePage() {
     fetchPresaleStatus();
   }, []);
 
+  // Tier countdown (tiers 4–8)
   useEffect(() => {
     if (currentTier.tier <= 3) {
       setCountdownTime("No time limit - Complete sale to advance");
@@ -110,6 +131,7 @@ export default function PresalePage() {
     return () => clearInterval(interval);
   }, [currentTier]);
 
+  // Local tier fallback based on tokens raised
   useEffect(() => {
     let raisedSoFar = 0;
     for (const tier of PRESALE_TIERS) {
@@ -142,9 +164,16 @@ export default function PresalePage() {
     if (!publicKey || !connected) return;
     try {
       setIsCheckingStatus(true);
-      const map = await canClaimTokensBulk([publicKey.toString()]);
-      const info = map.get(publicKey.toString());
-      setClaimableTokens(info ? { canClaim: info.canClaim, total: info.total } : null);
+      const result: any = await canClaimTokensBulk([publicKey.toString()]);
+      // Works with Map OR Array
+      const info =
+        result instanceof Map
+          ? result.get(publicKey.toString())
+          : Array.isArray(result)
+          ? result.find((r) => r.wallet === publicKey.toString())
+          : null;
+
+      setClaimableTokens(info ? { canClaim: !!info.canClaim, total: info.total } : null);
     } catch {
       toast.error("Failed to check claim status");
       setClaimableTokens(null);
