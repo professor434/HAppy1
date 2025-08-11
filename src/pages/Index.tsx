@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -19,6 +18,7 @@ import {
   SPL_MINT_ADDRESS,
   BUY_FEE_PERCENTAGE,
 } from "@/lib/solana";
+import { CustomWalletButton } from "@/components/CustomWalletButton";
 import { recordPurchase, canClaimTokensBulk, recordClaim, getCurrentTier, getPresaleStatus } from "@/lib/api";
 import MobileOpenInWallet from "@/components/MobileOpenInWallet";
 import { Badge } from "@/components/ui/badge";
@@ -26,23 +26,23 @@ import { Badge } from "@/components/ui/badge";
 type PaymentToken = "SOL" | "USDC";
 
 const PRESALE_TIERS = [
-  { tier: 1, price_usdc: 0.000260, max_tokens: 237_500_000, duration_days: null },
-  { tier: 2, price_usdc: 0.000312, max_tokens: 237_500_000, duration_days: null },
-  { tier: 3, price_usdc: 0.000374, max_tokens: 237_500_000, duration_days: null },
-  { tier: 4, price_usdc: 0.000449, max_tokens: 237_500_000, duration_days: 30 },
-  { tier: 5, price_usdc: 0.000539, max_tokens: 237_500_000, duration_days: 30 },
-  { tier: 6, price_usdc: 0.000647, max_tokens: 237_500_000, duration_days: 30 },
-  { tier: 7, price_usdc: 0.000776, max_tokens: 237_500_000, duration_days: 30 },
-  { tier: 8, price_usdc: 0.000931, max_tokens: 237_500_000, duration_days: 30 },
+  { tier: 1, price_usdc: 0.000260, max_tokens: 237500000, duration_days: null },
+  { tier: 2, price_usdc: 0.000312, max_tokens: 237500000, duration_days: null },
+  { tier: 3, price_usdc: 0.000374, max_tokens: 237500000, duration_days: null },
+  { tier: 4, price_usdc: 0.000449, max_tokens: 237500000, duration_days: 30 },
+  { tier: 5, price_usdc: 0.000539, max_tokens: 237500000, duration_days: 30 },
+  { tier: 6, price_usdc: 0.000647, max_tokens: 237500000, duration_days: 30 },
+  { tier: 7, price_usdc: 0.000776, max_tokens: 237500000, duration_days: 30 },
+  { tier: 8, price_usdc: 0.000931, max_tokens: 237500000, duration_days: 30 },
 ];
-
 const GOAL_TOKENS = PRESALE_TIERS.reduce((s, t) => s + (t.max_tokens || 0), 0);
 const SOL_TO_USDC_RATE = 170;
-const FORM_KEY = "presale:form:v1";
+const PROD_URL = "https://happypennisofficialpresale.vercel.app/";
 
 export default function PresalePage() {
   const { toast: uiToast } = useToast();
-  const { publicKey, connected, signTransaction, connect } = useWallet();
+  const { publicKey, connected, signTransaction, sendTransaction, connect } = useWallet();
+
   const [currentTier, setCurrentTier] = useState(PRESALE_TIERS[0]);
   const [totalRaised, setTotalRaised] = useState(0);
   const [amount, setAmount] = useState("");
@@ -50,9 +50,11 @@ export default function PresalePage() {
   const [countdownTime, setCountdownTime] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [presaleEnded, setPresaleEnded] = useState(false);
-  const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean; total?: string }>(null);
+  const [claimableTokens, setClaimableTokens] =
+    useState<null | { canClaim: boolean; total?: string }>(null);
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
   const lastWallet = useRef<string | null>(null);
 
   const isMobile = () =>
@@ -60,32 +62,25 @@ export default function PresalePage() {
   const hasInjected = () => {
     if (typeof window === "undefined") return false;
     const w = window as any;
-    return w.solana?.isPhantom || w.solflare || w.xnft;
+    return w.solana?.isPhantom || w.solflare;
   };
 
-  // Auto connect only when we're already inside a wallet webview
+  // Auto-connect μέσα σε wallet browser
   useEffect(() => {
-    if (isMobile() && hasInjected() && !connected) connect().catch(() => {});
+    if (isMobile() && hasInjected() && !connected) {
+      connect().catch(() => {});
+    }
   }, [connected, connect]);
 
-  // Restore form on load
+  // Αν ανοίχτηκε μέσω banner/wallet, με το που συνδεθεί να πάει στο prod URL
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FORM_KEY);
-      if (raw) {
-        const { amount: a, token } = JSON.parse(raw);
-        if (typeof a === "number" && a > 0) setAmount(String(a));
-        if (token === "SOL" || token === "USDC") setPaymentToken(token);
+    if (connected) {
+      const target = PROD_URL;
+      if (typeof window !== "undefined" && window.location.href !== target) {
+        window.location.href = target;
       }
-    } catch {}
-  }, []);
-  // Persist form while typing
-  useEffect(() => {
-    try {
-      const a = parseFloat(amount);
-      localStorage.setItem(FORM_KEY, JSON.stringify({ amount: isNaN(a) ? 0 : a, token: paymentToken }));
-    } catch {}
-  }, [amount, paymentToken]);
+    }
+  }, [connected]);
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -104,7 +99,6 @@ export default function PresalePage() {
     fetchPresaleStatus();
   }, []);
 
-  // Tier countdown (tiers 4–8)
   useEffect(() => {
     if (currentTier.tier <= 3) {
       setCountdownTime("No time limit - Complete sale to advance");
@@ -131,7 +125,6 @@ export default function PresalePage() {
     return () => clearInterval(interval);
   }, [currentTier]);
 
-  // Local tier fallback based on tokens raised
   useEffect(() => {
     let raisedSoFar = 0;
     for (const tier of PRESALE_TIERS) {
@@ -151,7 +144,9 @@ export default function PresalePage() {
       const status = await getPresaleStatus();
       if (status) {
         setTotalRaised(status.raised);
-        if (typeof status.presaleEnded === "boolean") setPresaleEnded(status.presaleEnded);
+        if (typeof status.presaleEnded === "boolean") {
+          setPresaleEnded(status.presaleEnded);
+        }
       }
     } catch (e) {
       console.error("status error:", e);
@@ -164,17 +159,10 @@ export default function PresalePage() {
     if (!publicKey || !connected) return;
     try {
       setIsCheckingStatus(true);
-      const result: any = await canClaimTokensBulk([publicKey.toString()]);
-      // Works with Map OR Array
-      const info =
-        result instanceof Map
-          ? result.get(publicKey.toString())
-          : Array.isArray(result)
-          ? result.find((r) => r.wallet === publicKey.toString())
-          : null;
-
-      setClaimableTokens(info ? { canClaim: !!info.canClaim, total: info.total } : null);
-    } catch {
+      const map = await canClaimTokensBulk([publicKey.toString()]);
+      const info = map.get(publicKey.toString());
+      setClaimableTokens(info ? { canClaim: info.canClaim, total: info.total } : null);
+    } catch (e) {
       toast.error("Failed to check claim status");
       setClaimableTokens(null);
     } finally {
@@ -185,7 +173,11 @@ export default function PresalePage() {
   const buyTokens = async () => {
     toast.info("Starting purchase process...");
     if (!connected) {
-      try { await connect(); } catch { return; }
+      try {
+        await connect();
+      } catch {
+        return;
+      }
     }
     if (!publicKey) {
       toast.error("Wallet not connected");
@@ -210,13 +202,13 @@ export default function PresalePage() {
 
       if (paymentToken === "SOL" && publicKey && signTransaction) {
         const solAmount = totalPriceUSDC / SOL_TO_USDC_RATE;
-        txSignature = await executeSOLPayment(solAmount, { publicKey, signTransaction });
+        txSignature = await executeSOLPayment(solAmount, { publicKey, signTransaction, sendTransaction });
         total_paid_usdc = null;
         total_paid_sol = +solAmount.toFixed(6);
         fee_paid_usdc = null;
         fee_paid_sol = +(solAmount * feePct).toFixed(6);
       } else if (paymentToken === "USDC" && publicKey && signTransaction) {
-        txSignature = await executeUSDCPayment(totalPriceUSDC, { publicKey, signTransaction });
+        txSignature = await executeUSDCPayment(totalPriceUSDC, { publicKey, signTransaction, sendTransaction });
         total_paid_usdc = +totalPriceUSDC.toFixed(6);
         total_paid_sol = null;
         fee_paid_usdc = +(totalPriceUSDC * feePct).toFixed(6);
@@ -227,7 +219,7 @@ export default function PresalePage() {
       }
 
       if (!txSignature) throw new Error("No transaction signature returned");
-      (window as typeof window & { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
+      (window as any).lastTransactionSignature = txSignature;
 
       const rec = await recordPurchase({
         wallet: publicKey.toString(),
@@ -240,7 +232,10 @@ export default function PresalePage() {
         fee_paid_sol: fee_paid_sol ?? undefined,
         price_usdc_each: currentTier.price_usdc,
       });
-      if (!rec) { toast.error("Purchase recorded failed. Try again."); return; }
+      if (!rec) {
+        toast.error("Purchase record failed. Try again.");
+        return;
+      }
 
       setTotalRaised((prev) => prev + penisAmount);
       setAmount("");
@@ -262,7 +257,7 @@ export default function PresalePage() {
     setIsClaimPending(true);
     try {
       const tokenAmount = parseFloat(claimableTokens.total);
-      const txSignature = await executeClaimFeePayment({ publicKey, signTransaction });
+      const txSignature = await executeClaimFeePayment({ publicKey, signTransaction, sendTransaction });
       if (!txSignature) throw new Error("Claim fee payment failed");
       const resp = await recordClaim({ wallet: publicKey.toString(), transaction_signature: txSignature });
       if (!resp?.success) throw new Error("Failed to record claim on server");
@@ -276,7 +271,7 @@ export default function PresalePage() {
     }
   };
 
-  const raisedPercentage = (totalRaised / GOAL_TOKENS) * 100;
+  const raisedPercentage = useMemo(() => (totalRaised / GOAL_TOKENS) * 100, [totalRaised]);
 
   return (
     <>
@@ -307,7 +302,7 @@ export default function PresalePage() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <WalletMultiButton />
+            <CustomWalletButton />
           </div>
         </header>
 
@@ -422,7 +417,6 @@ export default function PresalePage() {
                       <TabsTrigger value="buy">Buy Tokens</TabsTrigger>
                       <TabsTrigger value="tiers">Tier Info</TabsTrigger>
                     </TabsList>
-
                     <TabsContent value="buy" className="space-y-4 pt-4">
                       <div className="grid gap-2">
                         <Label htmlFor="amount">Amount of PENIS tokens</Label>
@@ -438,7 +432,7 @@ export default function PresalePage() {
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="token">Payment Token</Label>
-                        <Select value={paymentToken} onValueChange={(v: PaymentToken) => setPaymentToken(v)}>
+                        <Select value={paymentToken} onValueChange={(v: any) => setPaymentToken(v as PaymentToken)}>
                           <SelectTrigger className="bg-gray-800/50">
                             <SelectValue placeholder="Select token" />
                           </SelectTrigger>
