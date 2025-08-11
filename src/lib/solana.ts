@@ -1,4 +1,8 @@
 // ====== Env / RPC (robust) ======
+import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
+import { Connection, Transaction, PublicKey, SystemProgram, TransactionSignature, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+
 function clean(v: unknown) {
   return String(v ?? "").replace(/^['"]|['"]$/g, "").trim();
 }
@@ -6,7 +10,6 @@ function clean(v: unknown) {
 const HTTP_ENV = clean(import.meta.env.VITE_SOLANA_RPC_URL ?? (import.meta as any)?.env?.SOLANA_RPC);
 const WS_ENV   = clean(import.meta.env.VITE_SOLANA_WS_URL);
 
-// ίδιο project id της Extrnode
 const FALLBACK_HTTP = "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
 
 const RPC_HTTP = /^https:\/\//i.test(HTTP_ENV) ? HTTP_ENV : FALLBACK_HTTP;
@@ -17,6 +20,79 @@ export const connection = new Connection(RPC_HTTP, {
   wsEndpoint: RPC_WS,
   confirmTransactionInitialTimeout: 120_000,
 });
+
+// ====== Mobile-safe signer/sender ======
+async function signAndSendTransaction(
+  transaction: Transaction,
+  wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
+): Promise<TransactionSignature> {
+  if (!wallet?.publicKey) throw new Error("Wallet not connected");
+
+  // Prefer wallet.sendTransaction on mobile (Phantom/Solflare in-app)
+  if (typeof (wallet as any).sendTransaction === "function") {
+    const send = (wallet as any).sendTransaction.bind(wallet);
+    const sig: TransactionSignature = await send(transaction, connection, {
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
+      maxRetries: 3,
+    });
+    // Confirm with polling just in case websocket drops on mobile
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      const st = await connection.getSignatureStatuses([sig]);
+      const s = st.value?.[0];
+      if (s?.confirmationStatus === "confirmed" || s?.confirmationStatus === "finalized") break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return sig;
+  }
+
+  // Fallback path: manual sign + raw send
+  transaction.feePayer = wallet.publicKey!;
+  let bh = await connection.getLatestBlockhash("finalized");
+  transaction.recentBlockhash = bh.blockhash;
+
+  let signed = await wallet.signTransaction!(transaction);
+
+  const trySend = async () => {
+    const sig = await connection.sendRawTransaction(signed.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+    const conf = await connection.confirmTransaction(
+      { signature: sig, blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight },
+      "confirmed"
+    );
+    if (conf?.value?.err) throw new Error("Transaction error");
+    return sig as TransactionSignature;
+  };
+
+  try {
+    return await trySend();
+  } catch (e: any) {
+    // Blockhash race – refresh & retry once
+    if (String(e?.message || "").includes("blockhash not found")) {
+      bh = await connection.getLatestBlockhash("finalized");
+      transaction.recentBlockhash = bh.blockhash;
+      signed = await wallet.signTransaction!(transaction);
+      try {
+        return await trySend();
+      } catch {
+        // fallthrough to polling
+      }
+    }
+    // Final safety: send + polling
+    const sig = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false, maxRetries: 3 });
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      const st = await connection.getSignatureStatuses([sig]);
+      const s = st.value?.[0];
+      if (s?.confirmationStatus === "confirmed" || s?.confirmationStatus === "finalized") break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return sig as TransactionSignature;
+  }
+}
 
 
 
