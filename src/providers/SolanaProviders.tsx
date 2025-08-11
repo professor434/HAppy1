@@ -1,20 +1,23 @@
-// src/providers/SolanaProviders.tsx
-import { PropsWithChildren } from "react";
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import "@solana/wallet-adapter-react-ui/styles.css";
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+// …imports wallets…
 
-const HTTP = import.meta.env.VITE_SOLANA_RPC_URL!;
-const WS   = import.meta.env.VITE_SOLANA_WS_URL || HTTP.replace(/^http/i, "ws");
+const ENV = (import.meta as any)?.env ?? {};
+const trim = (s?: string) => (s ?? '').toString().trim();
 
-export default function SolanaProviders({ children }: PropsWithChildren) {
-  if (!HTTP) throw new Error("Missing VITE_SOLANA_RPC_URL");
+const RAW_HTTP = trim(ENV.VITE_SOLANA_RPC_URL || ENV.SOLANA_RPC || ENV.VITE_SOLANA_RPC_HTTP);
+const HTTP = RAW_HTTP.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:');
+if (!/^https?:\/\//i.test(HTTP)) throw new Error('VITE_SOLANA_RPC_URL must be https(s)://');
 
+const RAW_WS = trim(ENV.VITE_SOLANA_WS_URL);
+const WS = RAW_WS
+  ? RAW_WS.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:')
+  : HTTP.replace(/^http/i, 'ws');
+
+export default function SolanaProviders({ children }: { children: React.ReactNode }) {
   return (
-    <ConnectionProvider endpoint={HTTP} config={{ wsEndpoint: WS }}>
-      {/* wallets=[] για να μην σκάει το .filter όταν δεν δίνουμε adapters */}
-      <WalletProvider wallets={[]} autoConnect>
-        <WalletModalProvider>{children}</WalletModalProvider>
+    <ConnectionProvider endpoint={HTTP} config={{ commitment: 'confirmed', wsEndpoint: WS }}>
+      <WalletProvider wallets={/* … */} autoConnect>
+        {children}
       </WalletProvider>
     </ConnectionProvider>
   );
