@@ -14,9 +14,11 @@ const endpoint: string =
 export default function SolanaProviders({ children }: PropsWithChildren) {
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider autoConnect>
+      {/* ΠΕΡΝΑΜΕ ΡΗΤΑ ΚΕΝΟ ARRAY ΓΙΑ ΝΑ ΜΗΝ ΣΚΑΣΕΙ ΤΟ .filter */}
+      <WalletProvider wallets={[]} autoConnect onError={(e) => console.error("[wallet]", e)}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
 }
+
