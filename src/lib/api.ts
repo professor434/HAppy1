@@ -1,15 +1,20 @@
-// Base URL (Railway) με ασφαλές fallback
+// ======================================================
+// Base URL του backend (Railway) με ασφαλές fallback
+// ======================================================
 const RAW =
   (import.meta as any)?.env?.VITE_API_BASE_URL ||
   "https://happy-pennis.up.railway.app";
 
+// Κόβουμε τυχόν τελικές κάθετους
 export const API_BASE_URL = String(RAW).replace(/\/+$/, "");
 
-// debug helper
+// Debug helper για να βλέπεις τι πήρε το bundle
 // @ts-ignore
 if (typeof window !== "undefined") (window as any).__API_BASE__ = API_BASE_URL;
 
-// κοινός fetch helper
+// ======================================================
+// Helpers
+// ======================================================
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     mode: "cors",
@@ -45,12 +50,18 @@ async function tryAlt<T>(fn: () => Promise<T>, alt: () => Promise<T>) {
   }
 }
 
+// ======================================================
+// Types (ό,τι ζητάει το hook)
+// ======================================================
+export type PaymentToken = "SOL" | "USDC";
+
 export type TierInfo = {
   tier: number;
   price_usdc: number;
   max_tokens: number;
   duration_days?: number | null;
 };
+
 export type PresaleStatus = {
   raised: number;
   currentTier: TierInfo;
@@ -60,6 +71,7 @@ export type PresaleStatus = {
   fee_wallet: string;
   presaleEnded?: boolean;
 };
+
 export type PurchaseRecord = {
   id: number;
   wallet: string;
@@ -75,16 +87,49 @@ export type PurchaseRecord = {
   fee_paid_sol?: number;
   price_usdc_each?: number;
 };
-export type WalletClaimStatus = { wallet: string; canClaim: boolean; total?: string };
 
+export type WalletClaimStatus = {
+  wallet: string;
+  canClaim: boolean;
+  total?: string;
+};
+
+// ======================================================
+// API calls
+// ======================================================
+
+// Συνήθως /tiers επιστρέφει το τρέχον tier (object). Κάνουμε fallback σε /tiers/1.
 export async function getCurrentTier(): Promise<TierInfo> {
   return tryAlt<TierInfo>(
     () => j<TierInfo>("/tiers"),
     () => j<TierInfo>("/tiers/1")
   );
 }
+
 export const getPresaleStatus = () => j<PresaleStatus>("/status");
 
+// Αυτό ζητά το hook: λίστα από tiers. Αν ο server δίνει object, το γυρνάμε σε [object].
+// Δοκιμάζουμε και εναλλακτικά endpoints.
+export async function getPresaleTiers(): Promise<TierInfo[]> {
+  const tryPaths = ["/tiers", "/tiers/all", "/tiers-list", "/tiers/0", "/tiers/1"];
+
+  for (const p of tryPaths) {
+    try {
+      const r: any = await j<any>(p);
+      if (Array.isArray(r)) return r as TierInfo[];
+      if (r && typeof r === "object") {
+        if ("tiers" in r && Array.isArray(r.tiers)) return r.tiers as TierInfo[];
+        if ("tier" in r && "price_usdc" in r) return [r as TierInfo];
+      }
+    } catch {
+      // δοκίμασε το επόμενο path
+    }
+  }
+  // Αν όλα αποτύχουν, δώσε κενή λίστα αντί για build error
+  return [];
+}
+
+// Batch έλεγχος claim
 export async function canClaimTokensBulk(wallets: string[]) {
   if (wallets.length === 1) {
     const w = wallets[0];
@@ -110,6 +155,7 @@ export async function canClaimTokensBulk(wallets: string[]) {
     "/can-claim",
     { method: "POST", body: JSON.stringify({ wallets }) }
   );
+
   const map = new Map<string, WalletClaimStatus>();
   for (const r of out) {
     map.set(r.wallet, {
