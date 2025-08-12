@@ -1,34 +1,27 @@
-import { PropsWithChildren, useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import "@solana/wallet-adapter-react-ui/styles.css";
 
-const DEFAULT_RPC = "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
+import("@solana/wallet-adapter-react-ui/styles.css"); // keep styles
 
-const RAW_HTTP = (import.meta as { env?: { VITE_SOLANA_RPC_URL?: string } })?.env?.VITE_SOLANA_RPC_URL;
-const RAW_WS   = (import.meta as { env?: { VITE_SOLANA_WS_URL?: string } })?.env?.VITE_SOLANA_WS_URL;
+export default function SolanaProviders({ children }: { children: ReactNode }) {
+  const HTTP =
+    ((import.meta as any)?.env?.VITE_SOLANA_RPC_URL as string | undefined)?.trim() ||
+    "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
+  const WS =
+    ((import.meta as any)?.env?.VITE_SOLANA_WS_URL as string | undefined)?.trim() ||
+    HTTP.replace(/^https?/i, "wss");
 
-function getRpcEndpoint(u?: string) {
-  if (u && /^https:\/\//i.test(u)) return u;
-  console.warn(`VITE_SOLANA_RPC_URL missing or invalid; using ${DEFAULT_RPC}`);
-  return DEFAULT_RPC;
-}
-
-const HTTP = getRpcEndpoint(RAW_HTTP);
-const WS   = RAW_WS && /^wss?:\/\//i.test(RAW_WS) ? RAW_WS : HTTP.replace(/^https?/i, "ws");
-
-export default function SolanaProviders({ children }: PropsWithChildren) {
-  const cfg = useMemo(
-    () => ({
-      commitment: "confirmed" as const,
-      wsEndpoint: WS,
-      confirmTransactionInitialTimeout: 45_000,
-    }),
+  const endpoint = useMemo(() => HTTP, [HTTP]);
+  const config = useMemo(
+    () => ({ commitment: "confirmed" as const, wsEndpoint: WS }),
     [WS]
   );
 
+  // Δεν περνάμε λίστα wallets – τα Standard wallets (Phantom, Solflare, Backpack)
+  // ανιχνεύονται αυτόματα μέσω Wallet Standard.
   return (
-    <ConnectionProvider endpoint={HTTP} config={cfg}>
+    <ConnectionProvider endpoint={endpoint} config={config}>
       <WalletProvider wallets={[]} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
