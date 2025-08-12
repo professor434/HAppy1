@@ -122,7 +122,7 @@ async function signAndSendTransaction(
         s?.confirmationStatus === "finalized"
       )
         break;
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 500));
     }
     return signature as TransactionSignature;
   }
