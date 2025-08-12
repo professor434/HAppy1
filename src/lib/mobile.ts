@@ -1,35 +1,33 @@
 // src/lib/mobile.ts
-export function isMobileUA(ua = navigator.userAgent || "") {
-  return /iphone|ipad|ipod|android/i.test(ua);
+export function isMobileUA() {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
 }
 
-export function isPhantomUA(ua = navigator.userAgent || "") {
-  return /Phantom\/(ios|android)/i.test(ua);
+export function isInWalletWebView() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /Phantom|Solflare|Backpack/i.test(ua);
 }
 
-export function isSolflareUA(ua = navigator.userAgent || "") {
-  return /Solflare/i.test(ua);
+export function hasInjectedWallet() {
+  if (typeof window === "undefined") return false;
+  const w = window as any;
+  return !!(w.solana || w.phantom || w.solflare || w.backpack);
 }
 
-/** Είμαστε ήδη μέσα στο in-app browser κάποιου wallet; */
-export function isInWalletWebView(ua = navigator.userAgent || "") {
-  return isPhantomUA(ua) || isSolflareUA(ua);
-}
-
-/** Άνοιξε το τρέχον site κατευθείαν μέσα στο wallet browser (iOS/Android). */
 export function openInWalletBrowser(url: string) {
-  // Phantom deep link (works both platforms)
-  if (isPhantomUA() || /phantom/i.test(navigator.userAgent)) {
-    const link = `https://phantom.app/ul/browse/${encodeURIComponent(url)}`;
-    window.location.href = link;
-    return;
-  }
-  // Solflare deep link
-  if (isSolflareUA()) {
-    const link = `solflare://browser?url=${encodeURIComponent(url)}`;
-    window.location.href = link;
-    return;
-  }
-  // Fallback: απλά μείνε στο ίδιο tab
-  window.location.href = url;
+  const encoded = encodeURIComponent(url);
+  // Προτεραιότητα Phantom (δουλεύει και σε iOS/Android)
+  window.location.href = `https://phantom.app/ul/browse?url=${encoded}`;
+}
+
+export function phantomStoreUrl() {
+  const ua = navigator.userAgent || "";
+  const isiOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  if (isiOS) return "https://apps.apple.com/app/phantom-crypto-wallet/id1598432977";
+  if (isAndroid)
+    return "https://play.google.com/store/apps/details?id=app.phantom&hl=en";
+  return "https://phantom.app/";
 }
