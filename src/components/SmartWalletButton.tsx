@@ -15,7 +15,15 @@ import {
 export default function SmartWalletButton() {
   const [ready, setReady] = useState(false);
   const [hasProvider, setHasProvider] = useState(false);
-  const [choice, setChoice] = useState<WalletChoice>(() => getPreferredWallet());
+  const [choice, setChoice] = useState<WalletChoice>("phantom");
+
+  // Safely read preference AFTER mount (avoids localStorage quirks on iOS)
+  useEffect(() => {
+    try {
+      setChoice(getPreferredWallet());
+    } catch {}
+    setReady(true);
+  }, []);
 
   useEffect(() => {
     const check = () => setHasProvider(hasInjectedWallet());
@@ -32,8 +40,7 @@ export default function SmartWalletButton() {
     };
   }, []);
 
-  useEffect(() => setReady(true), []);
-  useEffect(() => setPreferredWallet(choice), [choice]);
+  useEffect(() => { try { setPreferredWallet(choice); } catch {} }, [choice]);
 
   if (!ready) return null;
 
@@ -87,8 +94,6 @@ export default function SmartWalletButton() {
           Install {choice === "phantom" ? "Phantom" : "Solflare"}
         </button>
       </div>
-
-      <p className="text-xs text-white/70">On iOS, connections work only inside the wallet’s in-app browser.</p>
     </div>
   );
 }
