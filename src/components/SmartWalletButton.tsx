@@ -12,17 +12,11 @@ import {
   type WalletChoice,
 } from "@/lib/mobile";
 
-/**
- * Desktop ή mobile-μέσα-σε-wallet: δείχνει το κανονικό WalletMultiButton.
- * Mobile εκτός wallet & χωρίς injected provider: δείχνει UI επιλογής Phantom / Solflare
- * με κουμπιά "Open in Wallet Browser" και "Install".
- */
 export default function SmartWalletButton() {
   const [ready, setReady] = useState(false);
   const [hasProvider, setHasProvider] = useState(false);
   const [choice, setChoice] = useState<WalletChoice>(() => getPreferredWallet());
 
-  // Visibility/focus re-check (μετά από install/return)
   useEffect(() => {
     const check = () => setHasProvider(hasInjectedWallet());
     check();
@@ -41,11 +35,11 @@ export default function SmartWalletButton() {
   useEffect(() => setReady(true), []);
   useEffect(() => setPreferredWallet(choice), [choice]);
 
+  if (!ready) return null;
+
   const mobile = isMobileUA();
   const inWallet = isInWalletWebView();
 
-  // Αν είμαστε σε desktop ή ήδη μέσα σε wallet ή υπάρχει provider -> δείξε MultiButton
-  if (!ready) return null;
   if (!mobile || inWallet || hasProvider) {
     return <CustomWalletButton />;
   }
@@ -55,13 +49,7 @@ export default function SmartWalletButton() {
 
   const Tab = useMemo(
     () =>
-      function Tab({
-        value,
-        label,
-      }: {
-        value: WalletChoice;
-        label: string;
-      }) {
+      function Tab({ value, label }: { value: WalletChoice; label: string }) {
         const active = choice === value;
         return (
           <button
@@ -92,7 +80,6 @@ export default function SmartWalletButton() {
         >
           Open in {choice === "phantom" ? "Phantom" : "Solflare"} Browser
         </button>
-
         <button
           onClick={onInstall}
           className="h-10 px-3 rounded-xl font-semibold border border-white/25 text-white hover:bg-white/10"
@@ -101,9 +88,7 @@ export default function SmartWalletButton() {
         </button>
       </div>
 
-      <p className="text-xs text-white/70">
-        On iOS, connections work only inside the wallet’s in-app browser.
-      </p>
+      <p className="text-xs text-white/70">On iOS, connections work only inside the wallet’s in-app browser.</p>
     </div>
   );
 }
