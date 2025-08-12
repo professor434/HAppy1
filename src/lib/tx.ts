@@ -26,7 +26,7 @@ export async function confirmWithRetry(
 ): Promise<RpcResponseAndContext<SignatureResult>> {
   const commitment = opts?.commitment ?? "confirmed";
   const pollMs = opts?.pollMs ?? 1200;
-  const maxSeconds = opts?.maxSeconds ?? 90;
+  const maxSeconds = opts?.maxSeconds ?? 120;
   const deadline = Date.now() + maxSeconds * 1000;
 
   await waitForVisibility();
@@ -46,7 +46,7 @@ export async function confirmWithRetry(
   const status = await conn.getSignatureStatuses([signature], { searchTransactionHistory: true });
   const st = status?.value?.[0];
   if (st?.err == null && st?.confirmationStatus) {
-    return { context: { apiVersion: null as any, slot: st.slot ?? 0 }, value: { err: null } };
+    return { context: { apiVersion: undefined, slot: st.slot ?? 0 }, value: { err: null } };
   }
   throw new Error("Transaction not confirmed within timeout");
 }
@@ -62,7 +62,7 @@ export async function sendAndAckVersionedTx(
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
     commitment: "processed",
-    maxSeconds: 30,
+    maxSeconds: 40,
     pollMs: 600,
   });
   return sig;
