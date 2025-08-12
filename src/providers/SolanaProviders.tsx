@@ -3,7 +3,7 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-const DEFAULT_RPC = "https://api.mainnet-beta.solana.com";
+const DEFAULT_RPC = "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
 
 const RAW_HTTP = (import.meta as { env?: { VITE_SOLANA_RPC_URL?: string } })?.env?.VITE_SOLANA_RPC_URL;
 const RAW_WS   = (import.meta as { env?: { VITE_SOLANA_WS_URL?: string } })?.env?.VITE_SOLANA_WS_URL;
