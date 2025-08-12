@@ -1,3 +1,4 @@
+// src/lib/solana.ts
 import {
   Connection,
   PublicKey,
@@ -15,44 +16,46 @@ import {
 } from "@solana/spl-token";
 import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
 
-// ---------- RPC ----------
+// ---------- Connection ----------
 export function makeConnection() {
   assertEnv();
   return new Connection(RPC_HTTP, {
     commitment: "confirmed",
     wsEndpoint: RPC_WS,
-    confirmTransactionInitialTimeout: 45_000,
+    confirmTransactionInitialTimeout: 9_000,
   });
 }
 
+// Re-use one connection across the app
 export const connection = makeConnection();
 
-// ---------- CONSTANTS ----------
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ENV = (import.meta as any)?.env ?? {};
+// ---------- ENV CONSTANTS ----------
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const ENV: any = (import.meta as any)?.env ?? {};
 
 export const SPL_MINT_ADDRESS: string =
   ENV.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 
-const TREASURY_WALLET_STR =
+const TREASURY_WALLET_STR: string =
   ENV.VITE_TREASURY_WALLET || "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
-const FEE_WALLET_STR =
+
+const FEE_WALLET_STR: string =
   ENV.VITE_FEE_WALLET || "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 
-export const BUY_FEE_PERCENTAGE =
+export const BUY_FEE_PERCENTAGE: number =
   ENV.VITE_BUY_FEE_PERCENTAGE ? Number(ENV.VITE_BUY_FEE_PERCENTAGE) : 2;
 
 export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
 export const FEE_WALLET = new PublicKey(FEE_WALLET_STR);
-
 export const USDC_MINT_ADDRESS = new PublicKey(
   "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 );
 
+// ---------- Helpers ----------
 const toLamports = (sol: number) => Math.floor(sol * LAMPORTS_PER_SOL);
 const toUSDCUnits = (u: number) => Math.floor(u * 1_000_000);
 
-// ---------- Mobile-safe send ----------
+// One path that works for desktop & mobile (uses sendTransaction when υπάρχει)
 async function signAndSendTransaction(
   transaction: Transaction,
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
@@ -62,10 +65,8 @@ async function signAndSendTransaction(
 ): Promise<TransactionSignature> {
   if (!wallet?.publicKey) throw new Error("Wallet not connected");
 
-  // 1) Αν υπάρχει sendTransaction (Phantom/Solflare mobile), χρησιμοποίησέ το.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Mobile wallets usually expose sendTransaction()
   if (typeof (wallet as any).sendTransaction === "function") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const send = (wallet as any).sendTransaction.bind(wallet);
     const sig: TransactionSignature = await send(transaction, connection, {
       skipPreflight: false,
@@ -77,7 +78,7 @@ async function signAndSendTransaction(
     return sig;
   }
 
-  // 2) Fallback: χειροκίνητο sign + robust confirm
+  // Fallback: manual sign + robust confirm
   transaction.feePayer = wallet.publicKey!;
   let latest = await connection.getLatestBlockhash("finalized");
   transaction.recentBlockhash = latest.blockhash;
@@ -103,7 +104,6 @@ async function signAndSendTransaction(
 
   try {
     return await tryOnce();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     if (String(e?.message || "").includes("blockhash not found")) {
       latest = await connection.getLatestBlockhash("finalized");
@@ -111,13 +111,16 @@ async function signAndSendTransaction(
       signed = await wallet.signTransaction!(transaction);
       return await tryOnce();
     }
-    // HTTP polling μέχρι 90s για mobile αργές συνδέσεις
+    // slow mobile networks – poll up to 90s
     const signature = await connection.sendRawTransaction(signed.serialize());
     const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
       const st = await connection.getSignatureStatuses([signature]);
       const s = st.value?.[0];
-      if (s?.confirmationStatus === "confirmed" || s?.confirmationStatus === "finalized")
+      if (
+        s?.confirmationStatus === "confirmed" ||
+        s?.confirmationStatus === "finalized"
+      )
         break;
       await new Promise((r) => setTimeout(r, 1500));
     }
@@ -174,8 +177,14 @@ export async function executeUSDCPayment(
 
   const owner = wallet.publicKey;
   const from = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, owner);
-  const toMain = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, TREASURY_WALLET);
-  const toFee = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, FEE_WALLET);
+  const toMain = await getAssociatedTokenAddress(
+    USDC_MINT_ADDRESS,
+    TREASURY_WALLET
+  );
+  const toFee = await getAssociatedTokenAddress(
+    USDC_MINT_ADDRESS,
+    FEE_WALLET
+  );
 
   const tx = new Transaction();
   try {
@@ -202,6 +211,7 @@ export async function executeUSDCPayment(
       )
     );
   }
+
   if (mainU64 > 0)
     tx.add(createTransferInstruction(from, toMain, owner, mainU64));
   if (feeU64 > 0) tx.add(createTransferInstruction(from, toFee, owner, feeU64));
@@ -217,9 +227,11 @@ export async function executeClaimFeePayment(
   }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
+
   const claimFeeSOL = ENV.VITE_CLAIM_FEE_SOL
     ? Number(ENV.VITE_CLAIM_FEE_SOL)
     : 0.0005;
+
   const tx = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: wallet.publicKey,
@@ -230,6 +242,7 @@ export async function executeClaimFeePayment(
   return signAndSendTransaction(tx, wallet);
 }
 
+// small helper
 export function formatPublicKey(k: string | PublicKey) {
   const s = typeof k === "string" ? k : k.toBase58();
   return `${s.slice(0, 6)}...${s.slice(-6)}`;
