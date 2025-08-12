@@ -1,28 +1,32 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* src/lib/solana.ts */
 import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
-import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionSignature } from "@solana/web3.js";
+import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionSignature } from "@solana/web3.js";
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
-// ===== RPC (HTTPS + WSS) =====
-const RAW_HTTP = (import.meta as any)?.env?.VITE_SOLANA_RPC_URL || "";
-const RAW_WS   = (import.meta as any)?.env?.VITE_SOLANA_WS_URL || "";
+// ---- RPC endpoints ----
+const HTTP = (import.meta as any)?.env?.VITE_SOLANA_RPC_URL?.trim();
+const WS = (import.meta as any)?.env?.VITE_SOLANA_WS_URL?.trim() || (HTTP ? HTTP.replace(/^https?/i, "wss") : undefined);
 
-function assertHttps(u: string) {
-  if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
+if (!HTTP || !/^https:\/\//i.test(HTTP)) {
+  // Δείξε τι είδαμε για να το δεις στο DevTools
+  if (typeof window !== "undefined") {
+    (window as any).__RPC__ = { HTTP, WS };
+    console.error("Bad VITE_SOLANA_RPC_URL:", HTTP);
+  }
+  throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
 }
-const RPC_HTTP = (() => {
-  const u = String(RAW_HTTP).trim();
-  assertHttps(u);
-  return u;
-})();
-const RPC_WS   = RAW_WS ? String(RAW_WS).trim() : RPC_HTTP.replace(/^https/i, "wss");
 
-export const connection = new Connection(RPC_HTTP, {
+export const connection = new Connection(HTTP, {
   commitment: "confirmed",
-  wsEndpoint: RPC_WS,
+  wsEndpoint: WS,
   confirmTransactionInitialTimeout: 90_000,
 });
+
+// Για debug από console:
+if (typeof window !== "undefined") {
+  (window as any).__RPC__ = { HTTP, WS };
+}
 
 // ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
 const ENV = (import.meta as any)?.env ?? {};
