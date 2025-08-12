@@ -1,21 +1,21 @@
 // src/providers/SolanaProviders.tsx
-import React, { PropsWithChildren } from "react";
+import React, { PropsWithChildren, useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { makeConnection } from "@/lib/solana";
+import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import "@solana/wallet-adapter-react-ui/styles.css";
+import { makeConnection } from "@/lib/solana";
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
-  // connection endpoint μόνο από το env/solana.ts
   const conn = makeConnection();
-
-  // Δεν εισάγουμε συγκεκριμένα adapters -> παίζουν τα Standard wallets
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wallets: any[] = [];
+  const endpoint = (conn as any).rpcEndpoint ?? (conn as any)._rpcEndpoint;
+  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
 
   return (
-    <ConnectionProvider endpoint={conn.rpcEndpoint} config={{ commitment: "confirmed", wsEndpoint: (conn as unknown as { _rpcWebSocketUrl: string })._rpcWebSocketUrl }}>
-      <WalletProvider wallets={wallets} autoConnect>
-        {children}
+    <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed" }}>
+      <WalletProvider wallets={wallets} autoConnect={false}>
+        <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
