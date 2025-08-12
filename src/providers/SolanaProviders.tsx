@@ -4,11 +4,14 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
 import "@solana/wallet-adapter-react-ui/styles.css";
-import { makeConnection } from "@/lib/solana";
+
+const DEFAULT_RPC = "https://api.mainnet-beta.solana.com";
+const endpoint: string =
+  (typeof window !== "undefined" && (window as any).__RPC_OVRD) ||
+  (import.meta?.env?.VITE_PUBLIC_RPC as string) ||
+  DEFAULT_RPC;
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
-  const conn = makeConnection();
-  const endpoint = (conn as any).rpcEndpoint ?? (conn as any)._rpcEndpoint;
   const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
 
   return (
@@ -19,3 +22,4 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
     </ConnectionProvider>
   );
 }
+
