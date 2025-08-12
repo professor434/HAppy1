@@ -1,6 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
-import {
+// ΠΑΛΙΟ: έπαιρνε τα env με δικό του τρόπο & πέταγε Error
+// ΝΕΟ:
+import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
+import { Connection } from "@solana/web3.js";
+
   Connection,
   PublicKey,
   Transaction,
