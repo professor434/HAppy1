@@ -22,7 +22,8 @@ export function makeConnection() {
   return new Connection(RPC_HTTP, {
     commitment: "confirmed",
     wsEndpoint: RPC_WS,
-    confirmTransactionInitialTimeout: 79_000,
+    confirmTransactionInitialTimeout: 40_000,
+
   });
 }
 
