@@ -1,56 +1,32 @@
-import React, { useMemo } from "react";
-
-function isInAppUA(ua: string) {
-  ua = ua || "";
-  return /Phantom/i.test(ua) || /Solflare/i.test(ua);
-}
-function isMobile(ua: string) {
-  return /Android|iPhone|iPad|iPod/i.test(ua);
-}
-function buildBrowseLinks(target: string) {
-  const enc = encodeURIComponent(target);
-  return {
-    phantomPrimary: `phantom://browse/${enc}`,
-    phantomFallback: `https://phantom.app/ul/browse/${enc}`,
-    solflarePrimary: `solflare://browse/${enc}`,
-    solflareFallback: `https://solflare.com/ul/browse/${enc}`,
-  };
-}
+// src/components/MobileOpenInWallet.tsx
+import React from "react";
+import { isMobileUA, isInWalletWebView, openInWalletBrowser } from "@/lib/mobile";
 
 export default function MobileOpenInWallet() {
-  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  const show = isMobile(ua) && !isInAppUA(ua);
-  const target = useMemo(() => (typeof window === "undefined" ? "" : window.location.href), []);
-  const links = useMemo(() => buildBrowseLinks(target), [target]);
+  if (typeof window === "undefined") return null;
+  if (!isMobileUA() || isInWalletWebView()) return null;
 
-  if (!show) return null;
-
-  const openPhantom = () => {
-    const t = setTimeout(() => (window.location.href = links.phantomFallback), 700);
-    window.location.href = links.phantomPrimary;
-    setTimeout(() => clearTimeout(t), 2000);
-  };
-  const openSolflare = () => {
-    const t = setTimeout(() => (window.location.href = links.solflareFallback), 700);
-    window.location.href = links.solflarePrimary;
-    setTimeout(() => clearTimeout(t), 2000);
-  };
+  const onOpen = () => openInWalletBrowser(location.href);
 
   return (
-    <div className="fixed bottom-3 left-3 right-3 z-[9999]">
-      <div className="rounded-2xl border border-white/10 bg-black/70 backdrop-blur p-3 shadow-lg">
-        <div className="text-sm text-white/90 mb-2">
-          On mobile, open this presale inside your wallet for a reliable connection.
-        </div>
-        <div className="flex gap-2">
-          <button onClick={openPhantom} className="flex-1 rounded-xl px-4 py-2 bg-violet-600 text-white font-medium">
-            Open in Phantom
-          </button>
-          <button onClick={openSolflare} className="flex-1 rounded-xl px-4 py-2 bg-amber-500 text-black font-medium">
-            Open in Solflare
-          </button>
-        </div>
+    <div style={{
+      position: "fixed", left: 16, right: 16, bottom: 16, zIndex: 9999,
+      background: "rgba(20,20,30,.9)", border: "1px solid rgba(255,255,255,.15)",
+      borderRadius: 12, padding: "14px 16px", color: "#fff", backdropFilter: "blur(6px)"
+    }}>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>Open inside your wallet</div>
+      <div style={{ fontSize: 13, opacity: .9, marginBottom: 10 }}>
+        For the smoothest experience on mobile, open this page inside your wallet’s browser.
       </div>
+      <button
+        onClick={onOpen}
+        style={{
+          width: "100%", height: 40, borderRadius: 10, border: "none",
+          background: "#7c3aed", color: "#fff", fontWeight: 600
+        }}
+      >
+        Open in Wallet Browser
+      </button>
     </div>
   );
 }
