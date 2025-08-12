@@ -12,9 +12,7 @@ import ClaimSection from "@/components/ClaimSection";
 import { formatPublicKey, SPL_MINT_ADDRESS } from "@/lib/solana";
 import { usePresale } from "@/hooks/use-presale";
 import { Spinner } from "@/components/ui/spinner";
-<script>
-  window.__RPC_OVRD="https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
-</script>
+
 
 export default function PresalePage() {
   const {
