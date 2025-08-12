@@ -1,29 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, PropsWithChildren } from "react";
-import { ConnectionProvider } from "@solana/wallet-adapter-react";
-import { WalletProvider } from "@solana/wallet-adapter-react";
+import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 
-// --- Fallback Extrnode (δικά σου κλειδιά) ---
+// --- Fallback Extrnode (δικά σου) ---
 const FALLBACK_HTTP =
   "https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
 const FALLBACK_WS =
   "wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2";
 
-// Κανονικοποίηση & ασφαλή defaults
 function resolveRpc() {
   const env = ((import.meta as any)?.env ?? {}) as Record<string, string | undefined>;
-
+  // 1) Αν υπάρχει runtime override, το παίρνουμε πρώτο
   let http =
-    (env.VITE_SOLANA_RPC_URL || env.VITE_SOLANA_RPC_HTTP || "").trim();
+    (typeof window !== "undefined" && (window as any).__RPC_OVRD) ||
+    env.VITE_SOLANA_RPC_URL ||
+    env.VITE_SOLANA_RPC_HTTP ||
+    "";
+
   let ws =
-    (env.VITE_SOLANA_WS_URL || env.VITE_SOLANA_RPC_WS || "").trim();
+    env.VITE_SOLANA_WS_URL ||
+    env.VITE_SOLANA_RPC_WS ||
+    "";
 
-  // HTTP
-  if (!http || !/^https:\/\//i.test(http)) {
-    http = FALLBACK_HTTP;
-  }
+  // HTTP normalize -> ΠΟΤΕ δεν ρίχνουμε throw
+  if (!http || !/^https:\/\//i.test(http)) http = FALLBACK_HTTP;
 
-  // Αν δεν έχεις ρητό WS, το παράγουμε από το HTTP
+  // WS από HTTP αν λείπει
   if (!ws) {
     try {
       const u = new URL(http);
@@ -32,19 +34,17 @@ function resolveRpc() {
     } catch {
       ws = FALLBACK_WS;
     }
+  } else {
+    try {
+      const u = new URL(ws.startsWith("http") ? ws : `https://${ws.replace(/^\/+/, "")}`);
+      u.protocol = "wss:";
+      ws = u.toString().replace(/\/$/, "");
+    } catch {
+      ws = FALLBACK_WS;
+    }
   }
 
-  // Εγγυόμαστε wss://
-  try {
-    const u = new URL(ws.startsWith("http") ? ws : `https://${ws.replace(/^\/+/, "")}`);
-    u.protocol = "wss:";
-    ws = u.toString().replace(/\/$/, "");
-  } catch {
-    ws = FALLBACK_WS;
-  }
-
-  // (προαιρετικό) δείξε τα endpoints μόνο σε dev
-  if (typeof window !== "undefined" && !("production" in process.env)) {
+  if (typeof window !== "undefined") {
     // @ts-ignore
     (window as any).__RPC__ = { http, ws };
   }
@@ -64,8 +64,7 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
         confirmTransactionInitialTimeout: 9000,
       }}
     >
-      {/* Δεν εισάγουμε explicit adapters (Backpack/OKX κ.λπ.) για να μην σπάει το build.
-         Το Wallet Standard εμφανίζει Phantom, Solflare, Backpack, OKX, κ.ά. όπου υπάρχουν. */}
+      {/* Wallet Standard – δεν εισάγουμε explicit adapters για να μην σπάει το build */}
       <WalletProvider wallets={[]} autoConnect>
         {children}
       </WalletProvider>
