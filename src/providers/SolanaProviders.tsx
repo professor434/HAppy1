@@ -1,35 +1,64 @@
-import { PropsWithChildren, useMemo } from "react";
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+/* eslint-disable react-hooks/exhaustive-deps */
+import { FC, PropsWithChildren, useMemo } from "react";
+import {
+  ConnectionProvider,
+  WalletProvider,
+} from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import {
+  WalletAdapterNetwork,
+} from "@solana/wallet-adapter-base";
+
+// ΜΟΝΟ standard adapter — θα εμφανίσει Phantom/Solflare/Backpack/OKX κλπ
+import { WalletStandardAdapterProvider } from "@solana/wallet-adapter-wallets";
+
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-const RAW_HTTP = (import.meta as { env?: { VITE_SOLANA_RPC_URL?: string } })?.env?.VITE_SOLANA_RPC_URL;
-const RAW_WS   = (import.meta as { env?: { VITE_SOLANA_WS_URL?: string } })?.env?.VITE_SOLANA_WS_URL;
+function pick(value?: unknown): string {
+  if (!value) return "";
+  return String(value).trim();
+}
 
-function assertHttps(u?: string) {
-  if (!u || !/^https:\/\//i.test(u)) {
+function makeWsFromHttp(httpUrl: string): string {
+  if (httpUrl.startsWith("https://")) return "wss://" + httpUrl.slice(8);
+  if (httpUrl.startsWith("http://")) return "ws://" + httpUrl.slice(7);
+  return httpUrl; // already ws(s)
+}
+
+export const SolanaProviders: FC<PropsWithChildren> = ({ children }) => {
+  // Διαβάζουμε και από fallback κλειδιά για να μην “πεθάνει” σε preview
+  const rawHTTP =
+    pick((import.meta as any)?.env?.VITE_SOLANA_RPC_URL) ||
+    pick((import.meta as any)?.env?.VITE_SOLANA_RPC) ||
+    pick((import.meta as any)?.env?.SOLANA_RPC); // έσχατο fallback
+
+  const rawWS =
+    pick((import.meta as any)?.env?.VITE_SOLANA_WS_URL) || makeWsFromHttp(rawHTTP);
+
+  // ΑΥΣΤΗΡΟΣ έλεγχος με καθαρό μήνυμα
+  if (!/^https:\/\/.+/i.test(rawHTTP)) {
+    // βοήθεια στο debug αν ξανασυμβεί
+    // @ts-ignore
+    if (typeof window !== "undefined") (window as any).__BAD_RPC__ = rawHTTP;
     throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
   }
-  return u;
-}
-const HTTP = assertHttps(RAW_HTTP);
-const WS   = RAW_WS && /^wss?:\/\//i.test(RAW_WS) ? RAW_WS : HTTP.replace(/^http/i, "ws");
 
-export default function SolanaProviders({ children }: PropsWithChildren) {
-  const cfg = useMemo(
-    () => ({
-      commitment: "confirmed" as const,
-      wsEndpoint: WS,
-      confirmTransactionInitialTimeout: 45_000,
-    }),
-    [WS]
-  );
+  const endpoint = useMemo(() => rawHTTP, [rawHTTP]);
+  const wsEndpoint = useMemo(() => rawWS, [rawWS]);
 
+  // autoConnect = true + μόνο standard provider (για να μην διπλοεγγράφονται οι ίδιες wallets)
   return (
-    <ConnectionProvider endpoint={HTTP} config={cfg}>
-      <WalletProvider wallets={[]} autoConnect>
+    <ConnectionProvider
+      endpoint={endpoint}
+      config={{
+        commitment: "confirmed",
+        wsEndpoint,
+        confirmTransactionInitialTimeout: 40_000,
+      }}
+    >
+      <WalletProvider wallets={[new WalletStandardAdapterProvider()]} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
-}
+};
