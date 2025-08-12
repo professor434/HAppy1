@@ -1,4 +1,4 @@
-// src/main.tsx
+import "./polyfills"; // <-- ΝΕΟ: πριν από ΟΛΑ
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
