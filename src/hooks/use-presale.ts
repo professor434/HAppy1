@@ -37,6 +37,7 @@ export function usePresale() {
   const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean; total?: string }>(null);
   const [isClaimPending, setIsClaimPending] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const lastWallet = useRef<string | null>(null);
 
@@ -91,6 +92,7 @@ export function usePresale() {
   const fetchPresaleStatus = async () => {
     try {
       setIsCheckingStatus(true);
+      setError(null);
       const status = await getPresaleStatus();
       if (status) {
         setTotalRaised(status.raised);
@@ -101,6 +103,9 @@ export function usePresale() {
       setTiers(tierList);
     } catch (e) {
       console.error("status error:", e);
+      const message = e instanceof Error ? e.message : "Failed to load presale data";
+      setError(message);
+      toast.error(message);
     } finally {
       setIsCheckingStatus(false);
     }
@@ -226,5 +231,6 @@ export function usePresale() {
     goalTokens,
     raisedPercentage,
     isMobile,
+    error,
   };
 }
