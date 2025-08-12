@@ -51,17 +51,15 @@ export async function confirmWithRetry(
   throw new Error("Transaction not confirmed within timeout");
 }
 
-// Fast-ack: resolve as soon as the network sees it (processed), then you can optionally
-// continue confirming in the background in your app logic.
+// Quick ack for fast UI after signing
 export async function sendAndAckVersionedTx(
   conn: Connection,
   tx: VersionedTransaction,
-  sendTx: (tx: VersionedTransaction) => Promise[string]
+  sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
   await sleep(150);
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("processed");
   const sig = await sendTx(tx);
-  // Quick ack: wait for 'processed' only to make UI feel instant
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
     commitment: "processed",
     maxSeconds: 30,
@@ -73,13 +71,13 @@ export async function sendAndAckVersionedTx(
 export async function sendAndConfirmVersionedTx(
   conn: Connection,
   tx: VersionedTransaction,
-  sendTx: (tx: VersionedTransaction) => Promise[string]
+  sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
   await sleep(250);
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
-    commitment: "confirmed",
+    commitment: "finalized",
     maxSeconds: 90,
     pollMs: 1200,
   });
