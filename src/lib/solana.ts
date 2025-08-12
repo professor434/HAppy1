@@ -17,17 +17,20 @@ import {
 import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
 
 // ---------- Connection ----------
-export function makeConnection() {
-  assertEnv();
-  return new Connection(RPC_HTTP, {
+export let connection: Connection;
+
+export async function makeConnection() {
+  await assertEnv();
+  connection = new Connection(RPC_HTTP, {
     commitment: "confirmed",
     wsEndpoint: RPC_WS,
     confirmTransactionInitialTimeout: 9_000,
   });
+  return connection;
 }
 
 // Re-use one connection across the app
-export const connection = makeConnection();
+void makeConnection();
 
 // ---------- ENV CONSTANTS ----------
 /* eslint-disable @typescript-eslint/no-explicit-any */
