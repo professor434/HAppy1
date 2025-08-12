@@ -1,6 +1,12 @@
-import { Buffer } from 'buffer';
+// src/buffer-polyfill.ts
+import { Buffer } from "buffer";
 
-// Make Buffer available globally
-window.Buffer = Buffer;
+// Κάνε διαθέσιμο το Buffer παντού (browser)
+if (!(window as any).Buffer) {
+  (window as any).Buffer = Buffer;
+}
 
-// This needs to be imported before any Solana imports
+// (προαιρετικό) dummy process ώστε κάποια libs να μη σπάνε
+if (!(window as any).process) {
+  (window as any).process = { env: {} } as any;
+}
