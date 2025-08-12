@@ -1,4 +1,5 @@
-// src/main.tsx
+import "./buffer-polyfill"; // <-- ΠΡΕΠΕΙ να μπει πρώτο
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
