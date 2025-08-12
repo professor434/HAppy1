@@ -1,33 +1,20 @@
 // src/providers/SolanaProviders.tsx
-import { PropsWithChildren, useMemo } from "react";
-import {
-  ConnectionProvider,
-  WalletProvider,
-} from "@solana/wallet-adapter-react";
+import React, { PropsWithChildren } from "react";
+import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+import { makeConnection } from "@/lib/solana";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
-
 export default function SolanaProviders({ children }: PropsWithChildren) {
-  // Βεβαιώσου ότι τα env είναι legit (και αυτοδιορθωμένα)
-  assertEnv();
+  // connection endpoint μόνο από το env/solana.ts
+  const conn = makeConnection();
 
-  const { endpoint, wsEndpoint } = useMemo(
-    () => ({ endpoint: RPC_HTTP, wsEndpoint: RPC_WS }),
-    []
-  );
+  // Δεν εισάγουμε συγκεκριμένα adapters -> παίζουν τα Standard wallets
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wallets: any[] = [];
 
   return (
-    <ConnectionProvider
-      endpoint={endpoint}
-      config={{
-        wsEndpoint,
-        commitment: "confirmed",
-        confirmTransactionInitialTimeout: 90_000,
-      }}
-    >
-      {/* Wallet Standard: αφήνουμε κενό το array για να εμφανίζει Phantom/Solflare/κλπ */}
-      <WalletProvider wallets={[]} autoConnect>
+    <ConnectionProvider endpoint={conn.rpcEndpoint} config={{ commitment: "confirmed", wsEndpoint: (conn as unknown as { _rpcWebSocketUrl: string })._rpcWebSocketUrl }}>
+      <WalletProvider wallets={wallets} autoConnect>
         {children}
       </WalletProvider>
     </ConnectionProvider>
