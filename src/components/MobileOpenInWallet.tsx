@@ -1,9 +1,8 @@
 // src/components/MobileOpenInWallet.tsx
+// No-op version to avoid banner while keeping imports intact
 import React from "react";
-import { isMobileUA, isInWalletWebView, openInWalletBrowser } from "@/lib/mobile";
-
-export default function MobileOpenInWallet() {
-  if (typeof window === "undefined") return null;
+export default function MobileOpenInWallet() { return null; }
+ if (typeof window === "undefined") return null;
   if (!isMobileUA() || isInWalletWebView()) return null;
 
   const onOpen = () => openInWalletBrowser(location.href);
