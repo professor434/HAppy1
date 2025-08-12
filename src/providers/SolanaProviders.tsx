@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, PropsWithChildren } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
+assertEnv();
 
 // --- Fallback Extrnode (δικά σου) ---
 const FALLBACK_HTTP =
@@ -52,14 +54,11 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
   const { http, ws } = useMemo(resolveRpc, []);
 
   return (
-    <ConnectionProvider
-      endpoint={http}
-      config={{
-        commitment: "confirmed",
-        wsEndpoint: ws,
-        confirmTransactionInitialTimeout: 9000,
-      }}
-    >
+<ConnectionProvider
+  endpoint={RPC_HTTP}
+  config={{ commitment: "confirmed", wsEndpoint: RPC_WS, confirmTransactionInitialTimeout: 9e4 }}
+>
+
       {/* Wallet Standard – δεν εισάγουμε explicit adapters για να μην σπάει το build */}
       <WalletProvider wallets={[]} autoConnect>
         {children}
