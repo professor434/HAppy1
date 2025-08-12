@@ -1,8 +1,7 @@
 // src/lib/api.ts
 
-// ======================================================
-// Base URL του backend (Railway) με ασφαλές fallback
-// ======================================================
+import { API_BASE_URL } from "@/lib/env";
+
 const RAW =
   (import.meta as any)?.env?.VITE_API_BASE_URL ||
   "https://happy-pennis.up.railway.app";
