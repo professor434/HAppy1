@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { CustomWalletButton } from "@/components/CustomWalletButton";
+import SmartWalletButton from "@/components/SmartWalletButton";
 import MobileOpenInWallet from "@/components/MobileOpenInWallet";
 import CountdownTimer from "@/components/CountdownTimer";
 import PurchaseForm from "@/components/PurchaseForm";
@@ -12,7 +12,6 @@ import ClaimSection from "@/components/ClaimSection";
 import { formatPublicKey, SPL_MINT_ADDRESS } from "@/lib/solana";
 import { usePresale } from "@/hooks/use-presale";
 import { Spinner } from "@/components/ui/spinner";
-
 
 export default function PresalePage() {
   const {
@@ -55,19 +54,17 @@ export default function PresalePage() {
     <>
       <MobileOpenInWallet />
       <div
-  className="flex flex-col min-h-screen text-white"
-  style={{
-    backgroundColor: "#131313",
-    backgroundImage: "url('/assets/images/banner.png')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundRepeat: "no-repeat",
-    // iOS fix: scroll αντί για fixed
-    backgroundAttachment:
-      typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "scroll" : "fixed",
-  }}
->
-
+        className="flex flex-col min-h-screen text-white"
+        style={{
+          backgroundColor: "#131313",
+          backgroundImage: "url('/assets/images/banner.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          backgroundAttachment:
+            typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "scroll" : "fixed",
+        }}
+      >
         <div className="fixed bottom-4 right-4 flex gap-2">
           <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white">SOL</div>
           <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center text-white">EX</div>
@@ -83,7 +80,7 @@ export default function PresalePage() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <CustomWalletButton />
+            <SmartWalletButton />
           </div>
         </header>
 
@@ -185,9 +182,7 @@ export default function PresalePage() {
         </footer>
 
         <style jsx global>{`
-          .wallet-adapter-dropdown-list {
-            z-index: 9999 !important;
-          }
+          .wallet-adapter-dropdown-list { z-index: 9999 !important; }
         `}</style>
       </div>
     </>
