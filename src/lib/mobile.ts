@@ -1,4 +1,6 @@
 // src/lib/mobile.ts
+export type WalletChoice = "phantom" | "solflare";
+
 export function isMobileUA() {
   if (typeof navigator === "undefined") return false;
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
@@ -7,27 +9,60 @@ export function isMobileUA() {
 export function isInWalletWebView() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
+  // Ανιχνεύουμε in-app browsers των wallets
   return /Phantom|Solflare|Backpack/i.test(ua);
 }
 
 export function hasInjectedWallet() {
   if (typeof window === "undefined") return false;
   const w = window as any;
-  return !!(w.solana || w.phantom || w.solflare || w.backpack);
+  // Συχνά υπάρχουν flags πάνω στο window.solana ή ξεχωριστά αντικείμενα
+  const sol = w.solana;
+  const hasPhantom =
+    !!(w.phantom?.solana?.isPhantom) || !!(sol?.isPhantom) || !!(sol?.providers?.some?.((p: any) => p?.isPhantom));
+  const hasSolflare =
+    !!(w.solflare?.isSolflare) || !!(sol?.isSolflare) || !!(sol?.providers?.some?.((p: any) => p?.isSolflare));
+
+  return Boolean(hasPhantom || hasSolflare);
 }
 
-export function openInWalletBrowser(url: string) {
-  const encoded = encodeURIComponent(url);
-  // Προτεραιότητα Phantom (δουλεύει και σε iOS/Android)
-  window.location.href = `https://phantom.app/ul/browse?url=${encoded}`;
+const deepLinks = {
+  phantom: (url: string) => `https://phantom.app/ul/browse?url=${encodeURIComponent(url)}`,
+  solflare: (url: string) => `https://solflare.com/ul/v1/browse?url=${encodeURIComponent(url)}`,
+} as const;
+
+export function openInWalletBrowser(url: string, wallet: WalletChoice) {
+  const href = deepLinks[wallet](url);
+  // Χρησιμοποιούμε _self για καθαρό redirect (iOS friendly)
+  if (typeof window !== "undefined") window.location.href = href;
 }
 
-export function phantomStoreUrl() {
+export function walletStoreUrl(wallet: WalletChoice) {
+  if (typeof navigator === "undefined") return "https://phantom.app/";
   const ua = navigator.userAgent || "";
   const isiOS = /iPhone|iPad|iPod/i.test(ua);
   const isAndroid = /Android/i.test(ua);
-  if (isiOS) return "https://apps.apple.com/app/phantom-crypto-wallet/id1598432977";
-  if (isAndroid)
-    return "https://play.google.com/store/apps/details?id=app.phantom&hl=en";
-  return "https://phantom.app/";
+
+  if (wallet === "phantom") {
+    if (isiOS) return "https://apps.apple.com/app/phantom-crypto-wallet/id1598432977";
+    if (isAndroid) return "https://play.google.com/store/apps/details?id=app.phantom&hl=en";
+    return "https://phantom.app/";
+  } else {
+    // Solflare
+    if (isiOS) return "https://apps.apple.com/app/solflare-solana-wallet/id1580902717";
+    if (isAndroid) return "https://play.google.com/store/apps/details?id=com.solflare.mobile";
+    return "https://solflare.com/";
+  }
+}
+
+// Απλό preference για να θυμόμαστε επιλογή wallet
+const KEY = "preferredWallet";
+export function getPreferredWallet(): WalletChoice {
+  if (typeof localStorage === "undefined") return "phantom";
+  const v = localStorage.getItem(KEY);
+  return (v === "solflare" ? "solflare" : "phantom");
+}
+export function setPreferredWallet(w: WalletChoice) {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(KEY, w);
 }
