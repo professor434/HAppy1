@@ -17,10 +17,6 @@ function resolveRpc() {
     env.VITE_SOLANA_RPC_HTTP ||
     "";
 
-  let ws =
-    env.VITE_SOLANA_WS_URL ||
-    env.VITE_SOLANA_RPC_WS ||
-    "";
 
   // HTTP normalize -> ΠΟΤΕ δεν ρίχνουμε throw
   if (!http || !/^https:\/\//i.test(http)) http = FALLBACK_HTTP;
