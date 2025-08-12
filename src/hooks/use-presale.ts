@@ -13,11 +13,11 @@ import {
   canClaimTokensBulk,
   recordClaim,
   getPresaleStatus,
-  getPresaleTiers,
   type TierInfo,
-  type PaymentToken,
 } from "@/lib/api";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+type PaymentToken = "SOL" | "USDC";
 
 const SOL_TO_USDC_RATE = 170;
 const PROD_URL = (import.meta.env.VITE_PROD_URL as string) || "https://happypennisofficialpresale.vercel.app/";
@@ -98,9 +98,8 @@ export function usePresale() {
         setTotalRaised(status.raised);
         setPresaleEnded(!!status.presaleEnded);
         setCurrentTier(status.currentTier);
+        setTiers([status.currentTier]);
       }
-      const tierList = await getPresaleTiers();
-      setTiers(tierList);
     } catch (e) {
       console.error("status error:", e);
       const message = e instanceof Error ? e.message : "Failed to load presale data";

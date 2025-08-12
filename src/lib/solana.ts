@@ -1,8 +1,4 @@
-// ΠΑΛΙΟ: έπαιρνε τα env με δικό του τρόπο & πέταγε Error
-// ΝΕΟ:
-import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
-import { Connection } from "@solana/web3.js";
-
+import {
   Connection,
   PublicKey,
   Transaction,
@@ -10,40 +6,29 @@ import { Connection } from "@solana/web3.js";
   TransactionSignature,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
+import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
 import {
   createTransferInstruction,
   getAssociatedTokenAddress,
   getAccount,
   createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
+import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
 
 // ---------- RPC ----------
-function pick(v?: unknown) {
-  return v ? String(v).trim() : "";
+export function makeConnection() {
+  assertEnv();
+  return new Connection(RPC_HTTP, {
+    commitment: "confirmed",
+    wsEndpoint: RPC_WS,
+    confirmTransactionInitialTimeout: 9_000,
+  });
 }
-function wsFromHttp(u: string) {
-  if (u.startsWith("https://")) return "wss://" + u.slice(8);
-  if (u.startsWith("http://")) return "ws://" + u.slice(7);
-  return u;
-}
-const HTTP =
-  pick((import.meta as any)?.env?.VITE_SOLANA_RPC_URL) ||
-  pick((import.meta as any)?.env?.VITE_SOLANA_RPC) ||
-  pick((import.meta as any)?.env?.SOLANA_RPC);
-if (!/^https:\/\/.+/i.test(HTTP)) {
-  // @ts-ignore
-  if (typeof window !== "undefined") (window as any).__BAD_RPC__ = HTTP;
-  throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
-}
-const WS = pick((import.meta as any)?.env?.VITE_SOLANA_WS_URL) || wsFromHttp(HTTP);
 
-export const connection = new Connection(HTTP, {
-  commitment: "confirmed",
-  wsEndpoint: WS,
-  confirmTransactionInitialTimeout: 90_000,
-});
+export const connection = makeConnection();
 
 // ---------- CONSTANTS ----------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ENV = (import.meta as any)?.env ?? {};
 
 export const SPL_MINT_ADDRESS: string =
@@ -71,13 +56,16 @@ const toUSDCUnits = (u: number) => Math.floor(u * 1_000_000);
 async function signAndSendTransaction(
   transaction: Transaction,
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendTransaction?: any;
   }
 ): Promise<TransactionSignature> {
   if (!wallet?.publicKey) throw new Error("Wallet not connected");
 
   // 1) Αν υπάρχει sendTransaction (Phantom/Solflare mobile), χρησιμοποίησέ το.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (typeof (wallet as any).sendTransaction === "function") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const send = (wallet as any).sendTransaction.bind(wallet);
     const sig: TransactionSignature = await send(transaction, connection, {
       skipPreflight: false,
@@ -115,6 +103,7 @@ async function signAndSendTransaction(
 
   try {
     return await tryOnce();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     if (String(e?.message || "").includes("blockhash not found")) {
       latest = await connection.getLatestBlockhash("finalized");
@@ -140,6 +129,7 @@ async function signAndSendTransaction(
 export async function executeSOLPayment(
   amountSOL: number,
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendTransaction?: any;
   }
 ): Promise<TransactionSignature> {
@@ -172,6 +162,7 @@ export async function executeSOLPayment(
 export async function executeUSDCPayment(
   amountUSDC: number,
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendTransaction?: any;
   }
 ): Promise<TransactionSignature> {
@@ -221,6 +212,7 @@ export async function executeUSDCPayment(
 // ---------- Claim fee ----------
 export async function executeClaimFeePayment(
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendTransaction?: any;
   }
 ): Promise<TransactionSignature> {
