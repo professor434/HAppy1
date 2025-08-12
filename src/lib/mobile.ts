@@ -28,18 +28,25 @@ const deepLinks = {
   solflare: (url: string) => `https://solflare.com/ul/v1/browse?url=${encodeURIComponent(url)}`,
 } as const;
 
+function safeGet(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function safeSet(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* ignore (iOS private mode) */ }
+}
+
 const KEY = "preferredWallet";
 export function getPreferredWallet(): WalletChoice {
   if (typeof localStorage === "undefined") return "phantom";
-  const v = localStorage.getItem(KEY);
+  const v = safeGet(KEY);
   return (v === "solflare" ? "solflare" : "phantom");
 }
 export function setPreferredWallet(w: WalletChoice) {
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(KEY, w);
+  safeSet(KEY, w);
 }
 
-// Accepts 1 or 2 args for backwards-compat (MobileOpenInWallet uses single-arg)
+// Accepts 1 or 2 args (backward compatible)
 export function openInWalletBrowser(url: string, wallet?: WalletChoice) {
   const choice = wallet ?? getPreferredWallet();
   const href = deepLinks[choice](url);
