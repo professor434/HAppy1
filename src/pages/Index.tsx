@@ -54,16 +54,19 @@ export default function PresalePage() {
     <>
       <MobileOpenInWallet />
       <div
-        className="flex flex-col min-h-screen text-white"
-        style={{
-          backgroundColor: "#131313",
-          backgroundImage: `url('/assets/images/banner.png')`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          backgroundAttachment: isMobile ? "scroll" : "fixed",
-        }}
-      >
+  className="flex flex-col min-h-screen text-white"
+  style={{
+    backgroundColor: "#131313",
+    backgroundImage: "url('/assets/images/banner.png')",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    // iOS fix: scroll αντί για fixed
+    backgroundAttachment:
+      typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "scroll" : "fixed",
+  }}
+>
+
         <div className="fixed bottom-4 right-4 flex gap-2">
           <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white">SOL</div>
           <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center text-white">EX</div>
