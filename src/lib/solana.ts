@@ -6,9 +6,11 @@ import { createTransferInstruction, getAssociatedTokenAddress, getAccount, creat
 
 // ===== RPC (HTTP(S) + WSS) =====
 
-const ENV_VARS = (import.meta as any)?.env || {};
-const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_URL || "";
-const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
+const RAW_HTTP =
+  import.meta.env.VITE_SOLANA_RPC_URL ||
+  import.meta.env.VITE_SOLANA_QUICKNODE_URL ||
+  "";
+const RAW_WS = import.meta.env.VITE_SOLANA_WS_URL || "";
 
 
 function assertHttp(u: string) {
@@ -45,16 +47,21 @@ export const connection = new Connection(RPC_HTTP, {
 // ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
 
 export const SPL_MINT_ADDRESS: string =
-  ENV_VARS.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
+  import.meta.env.VITE_SPL_MINT_ADDRESS ||
+  "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 
 const TREASURY_WALLET_STR =
-  ENV_VARS.VITE_TREASURY_WALLET || "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
+  import.meta.env.VITE_TREASURY_WALLET ||
+  "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
 
 const FEE_WALLET_STR =
-  ENV_VARS.VITE_FEE_WALLET || "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
+  import.meta.env.VITE_FEE_WALLET ||
+  "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 
 export const BUY_FEE_PERCENTAGE =
-  ENV_VARS.VITE_BUY_FEE_PERCENTAGE ? Number(ENV_VARS.VITE_BUY_FEE_PERCENTAGE) : 2;
+  import.meta.env.VITE_BUY_FEE_PERCENTAGE
+    ? Number(import.meta.env.VITE_BUY_FEE_PERCENTAGE)
+    : 2;
 
 
 export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
@@ -160,7 +167,9 @@ export async function executeClaimFeePayment(
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
-  const claimFeeSOL = ENV_VARS.VITE_CLAIM_FEE_SOL ? Number(ENV_VARS.VITE_CLAIM_FEE_SOL) : 0.0005;
+  const claimFeeSOL = import.meta.env.VITE_CLAIM_FEE_SOL
+    ? Number(import.meta.env.VITE_CLAIM_FEE_SOL)
+    : 0.0005;
 
   const tx = new Transaction().add(
     SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET, lamports: toLamports(claimFeeSOL) })
