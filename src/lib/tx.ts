@@ -24,7 +24,7 @@ export async function confirmWithRetry(
   params: { blockhash: string; lastValidBlockHeight: number },
   opts?: { commitment?: Commitment; maxSeconds?: number; pollMs?: number }
 ): Promise<RpcResponseAndContext<SignatureResult>> {
-  const commitment = opts?.commitment ?? "confirmed";
+  const commitment = opts?.commitment ?? "finalized";
   const pollMs = opts?.pollMs ?? 1200;
   const maxSeconds = opts?.maxSeconds ?? 120;
   const deadline = Date.now() + maxSeconds * 1000;
@@ -48,7 +48,7 @@ export async function confirmWithRetry(
   if (st?.err == null && st?.confirmationStatus) {
     return { context: { apiVersion: undefined, slot: st.slot ?? 0 }, value: { err: null } };
   }
-  throw new Error("Transaction not confirmed within timeout");
+  throw new Error("Transaction not finalized within timeout");
 }
 
 // Quick ack for fast UI after signing
@@ -58,11 +58,13 @@ export async function sendAndAckVersionedTx(
   sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
   await sleep(150);
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("processed");
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
-    commitment: "processed",
-    maxSeconds: 40,
+
+    commitment: "finalized",
+    maxSeconds: 30,
+
     pollMs: 600,
   });
   return sig;
@@ -74,7 +76,7 @@ export async function sendAndConfirmVersionedTx(
   sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
   await sleep(250);
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
     commitment: "finalized",

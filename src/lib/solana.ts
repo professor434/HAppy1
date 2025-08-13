@@ -17,18 +17,21 @@ import {
 import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
 
 // ---------- Connection ----------
-export function makeConnection() {
-  assertEnv();
-  return new Connection(RPC_HTTP, {
-    commitment: "confirmed",
+export let connection: Connection;
+
+export async function makeConnection() {
+  await assertEnv();
+  connection = new Connection(RPC_HTTP, {
+    commitment: "finalized",
     wsEndpoint: RPC_WS,
     confirmTransactionInitialTimeout: 40_000,
 
   });
+  return connection;
 }
 
 // Re-use one connection across the app
-export const connection = makeConnection();
+void makeConnection();
 
 // ---------- ENV CONSTANTS ----------
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -71,10 +74,10 @@ async function signAndSendTransaction(
     const send = (wallet as any).sendTransaction.bind(wallet);
     const sig: TransactionSignature = await send(transaction, connection, {
       skipPreflight: false,
-      preflightCommitment: "confirmed",
+      preflightCommitment: "finalized",
       maxRetries: 3,
     });
-    const res = await connection.confirmTransaction(sig, "confirmed");
+    const res = await connection.confirmTransaction(sig, "finalized");
     if (res.value?.err) throw new Error("Transaction failed");
     return sig;
   }
@@ -97,7 +100,7 @@ async function signAndSendTransaction(
         blockhash: latest.blockhash,
         lastValidBlockHeight: latest.lastValidBlockHeight,
       },
-      "confirmed"
+      "finalized"
     );
     if (confirmation?.value?.err) throw new Error("Transaction error");
     return signature as TransactionSignature;
@@ -118,11 +121,7 @@ async function signAndSendTransaction(
     while (Date.now() < deadline) {
       const st = await connection.getSignatureStatuses([signature]);
       const s = st.value?.[0];
-      if (
-        s?.confirmationStatus === "confirmed" ||
-        s?.confirmationStatus === "finalized"
-      )
-        break;
+      if (s?.confirmationStatus === "finalized") break;
       await new Promise((r) => setTimeout(r, 500));
     }
     return signature as TransactionSignature;
