@@ -11,6 +11,7 @@ const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_
 const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
 
 
+
 function getHttpRpc(): string {
   const u = String(RAW_HTTP).trim();
   if (/^https?:\/\//i.test(u)) {
@@ -23,6 +24,7 @@ function getHttpRpc(): string {
   return "http://localhost:8899";
 }
 const RPC_HTTP = getHttpRpc();
+
 
 
 // Only use an explicit WS endpoint if it begins with ws:// or wss://.
