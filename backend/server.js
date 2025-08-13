@@ -11,7 +11,7 @@ const __dirname  = path.dirname(__filename);
 process.on("unhandledRejection", (r)=> console.error("UNHANDLED REJECTION:", r));
 process.on("uncaughtException",  (e)=> console.error("UNCAUGHT EXCEPTION:", e));
 
-const app  = express();
+export const app  = express();
 const PORT = process.env.PORT || 8080;
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
@@ -29,6 +29,8 @@ const requireAdmin = (req, res, next) => {
   if (key === ADMIN_SECRET) return next();
   return res.status(401).json({ error: "UNAUTHORIZED" });
 };
+
+const sanitize = (s = "") => String(s).replace(/[\u0000-\u001F\u007F]/g, "");
 
 // --- Project constants
 const SPL_MINT_ADDRESS = "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
@@ -173,7 +175,13 @@ app.get("/status", (req, res) => {
 
 // BUY — idempotent + σωστή αποθήκευση SOL/USDC
 app.post("/buy", async (req, res) => {
-  const b = req.is("application/json") ? req.body : JSON.parse(req.body || "{}");
+  let b;
+  if (req.is("application/json")) {
+    b = req.body;
+  } else {
+    try { b = JSON.parse(req.body || "{}"); }
+    catch { return res.status(400).json({ error: "Invalid JSON" }); }
+  }
   const {
     wallet,
     amount,
@@ -186,14 +194,31 @@ app.post("/buy", async (req, res) => {
     price_usdc_each,
   } = b || {};
 
-  if (!wallet || !amount || !token || !transaction_signature) {
+  if (!wallet || amount == null || !token || !transaction_signature) {
     return res.status(400).json({ error: "Missing required fields" });
   }
   if (!["SOL", "USDC"].includes(token)) {
     return res.status(400).json({ error: "Invalid token" });
   }
 
-  const userAgent = req.get("user-agent") || "";
+  const numFields = {
+    amount,
+    total_paid_usdc,
+    total_paid_sol,
+    fee_paid_usdc,
+    fee_paid_sol,
+    price_usdc_each,
+  };
+  for (const [k, v] of Object.entries(numFields)) {
+    if (v !== undefined && v !== null) {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0) {
+        return res.status(400).json({ error: `Invalid ${k}` });
+      }
+    }
+  }
+
+  const userAgent = sanitize(req.get("user-agent") || "");
 
   await queue(async () => {
     await loadData();
@@ -207,7 +232,7 @@ app.post("/buy", async (req, res) => {
 
     const purchase = {
       id: purchases.length + 1,
-      wallet: String(wallet).trim(),
+      wallet: sanitize(String(wallet).trim()),
       token,
       amount: Number(amount),
       tier: Number(currentTier.tier || 1),
@@ -233,14 +258,14 @@ app.post("/buy", async (req, res) => {
     await saveData();
 
     const feeStr = isSOL ? `fee(sol)=${purchase.fee_paid_sol}` : `fee(usdc)=${purchase.fee_paid_usdc}`;
-    console.log(`🛒 Purchase: ${purchase.amount} PENIS by ${short(purchase.wallet)}, ${feeStr} ua=${userAgent}`);
+    console.log(`🛒 Purchase: ${purchase.amount} PENIS by ${short(sanitize(purchase.wallet))}, ${feeStr} ua=${userAgent}`);
     res.json(purchase);
   }).catch((e) => { console.error("write-error", e); res.status(500).json({ error: "STORE_FAILED" }); });
 });
 
 // can-claim (single wallet)
 app.get("/can-claim/:wallet", async (req, res) => {
-  const { wallet } = req.params;
+  const wallet = sanitize(req.params.wallet);
   await loadData();
   const list = purchases.filter((p) => p.wallet === wallet);
   const totalTokens = list.reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -250,15 +275,15 @@ app.get("/can-claim/:wallet", async (req, res) => {
 
 // can-claim bulk
 app.post("/can-claim", async (req, res) => {
-  const wallets = (req.body && req.body.wallets) || [];
-  const userAgent = req.get("user-agent") || "";
+  const wallets = ((req.body && req.body.wallets) || []).map(w => sanitize(String(w).trim()));
+  const userAgent = sanitize(req.get("user-agent") || "");
   console.log("📦 /can-claim raw body:", { wallets, userAgent });
 
   await loadData();
   const out = wallets.map((w) => {
     const ww   = String(w).trim();
     const list = purchases.filter((p) => p.wallet === ww);
-    if (list.length === 0) console.log("🔍 /can-claim checked wallet with no purchases:", ww);
+    if (list.length === 0) console.log("🔍 /can-claim checked wallet with no purchases:", sanitize(ww));
     const total = list.reduce((s, p) => s + Number(p.amount || 0), 0);
     const anyClaimed = list.some((p) => p.claimed);
     return { wallet: ww, canClaim: total > 0 && !anyClaimed, total: total ? String(total) : undefined };
@@ -269,7 +294,8 @@ app.post("/can-claim", async (req, res) => {
 // claim
 app.post("/claim", async (req, res) => {
   const { wallet, transaction_signature } = req.body || {};
-  const userAgent = req.get("user-agent") || "";
+  const userAgent = sanitize(req.get("user-agent") || "");
+  const cleanWallet = sanitize(String(wallet));
 
   if (!wallet || !transaction_signature) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -277,7 +303,7 @@ app.post("/claim", async (req, res) => {
 
   await queue(async () => {
     await loadData();
-    const userPurchases = purchases.filter((p) => p.wallet === wallet);
+    const userPurchases = purchases.filter((p) => p.wallet === cleanWallet);
     const anyClaimed = userPurchases.some((p) => p.claimed);
     if (anyClaimed) { res.status(400).json({ error: "Tokens already claimed" }); return; }
 
@@ -291,7 +317,7 @@ app.post("/claim", async (req, res) => {
 
     const claim = {
       id: claims.length + 1,
-      wallet,
+      wallet: cleanWallet.trim(),
       total_tokens: totalTokens,
       transaction_signature,
       timestamp: new Date().toISOString(),
@@ -300,7 +326,7 @@ app.post("/claim", async (req, res) => {
     claims.push(claim);
 
     await saveData();
-    console.log(`🎉 Claimed: ${totalTokens} tokens by ${short(wallet)}, ua=${userAgent}`);
+    console.log(`🎉 Claimed: ${totalTokens} tokens by ${short(sanitize(cleanWallet))}, ua=${userAgent}`);
     res.json({ success: true });
   }).catch((e) => { console.error("write-error", e); res.status(500).json({ error: "STORE_FAILED" }); });
 });
@@ -373,7 +399,7 @@ app.get("/export", requireAdmin, (req, res) => {
 });
 
 // --- One-time cleanup: fix wrong fee fields & normalize numbers
-app.get("/debug/migration-status", async (req, res) => {
+app.get("/debug/migration-status", requireAdmin, async (req, res) => {
   try { await fs.access(MIGRATION_SENTINEL); res.json({ done: true }); }
   catch { res.json({ done: false }); }
 });
@@ -403,17 +429,21 @@ async function runFixFeesOnce() {
   await fs.writeFile(MIGRATION_SENTINEL, new Date().toISOString(), "utf8");
   return { ok: true, changed, total: purchases.length };
 }
-app.post("/debug/fix-fees-once", async (req, res) => {
+app.post("/debug/fix-fees-once", requireAdmin, async (req, res) => {
   try { res.json(await runFixFeesOnce()); }
   catch (e) { console.error(e); res.status(500).json({ ok:false, error:String(e) }); }
 });
-app.get("/debug/fix-fees-once", async (req, res) => {
+app.get("/debug/fix-fees-once", requireAdmin, async (req, res) => {
   try { res.json(await runFixFeesOnce()); }
   catch (e) { console.error(e); res.status(500).json({ ok:false, error:String(e) }); }
 });
 
 // --- Start
-(async () => {
-  await initializeData();
-  app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
-})();
+if (process.env.NODE_ENV !== "test") {
+  (async () => {
+    await initializeData();
+    app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
+  })();
+}
+
+export { initializeData };
