@@ -21,7 +21,9 @@ export default function SmartWalletButton() {
   useEffect(() => {
     try {
       setChoice(getPreferredWallet());
-    } catch {}
+    } catch {
+      // ignore preference read errors
+    }
     setReady(true);
   }, []);
 
@@ -40,19 +42,13 @@ export default function SmartWalletButton() {
     };
   }, []);
 
-  useEffect(() => { try { setPreferredWallet(choice); } catch {} }, [choice]);
-
-  if (!ready) return null;
-
-  const mobile = isMobileUA();
-  const inWallet = isInWalletWebView();
-
-  if (!mobile || inWallet || hasProvider) {
-    return <CustomWalletButton />;
-  }
-
-  const onOpen = () => openInWalletBrowser(location.href, choice);
-  const onInstall = () => window.open(walletStoreUrl(choice), "_blank");
+  useEffect(() => {
+    try {
+      setPreferredWallet(choice);
+    } catch {
+      // ignore preference write errors
+    }
+  }, [choice]);
 
   const Tab = useMemo(
     () =>
@@ -72,6 +68,18 @@ export default function SmartWalletButton() {
       },
     [choice]
   );
+
+  if (!ready) return null;
+
+  const mobile = isMobileUA();
+  const inWallet = isInWalletWebView();
+
+  if (!mobile || inWallet || hasProvider) {
+    return <CustomWalletButton />;
+  }
+
+  const onOpen = () => openInWalletBrowser(location.href, choice);
+  const onInstall = () => window.open(walletStoreUrl(choice), "_blank");
 
   return (
     <div className="flex flex-col items-end gap-2">
