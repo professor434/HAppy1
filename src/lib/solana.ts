@@ -5,9 +5,11 @@ import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, Tr
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
 // ===== RPC (HTTPS + WSS) =====
+
 const ENV = (import.meta as any)?.env || {};
 const RAW_HTTP = ENV.VITE_SOLANA_RPC_URL || ENV.VITE_SOLANA_QUICKNODE_URL || "";
 const RAW_WS   = ENV.VITE_SOLANA_WS_URL || "";
+
 
 function assertHttps(u: string) {
   if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
@@ -25,7 +27,8 @@ export const connection = new Connection(RPC_HTTP, {
   confirmTransactionInitialTimeout: 90_000,
 });
 
-// ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
+const ENV = (import.meta as any)?.env ?? {};
+
 export const SPL_MINT_ADDRESS: string =
   ENV.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 
