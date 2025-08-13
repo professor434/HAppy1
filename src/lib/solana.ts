@@ -24,7 +24,7 @@ export async function makeConnection() {
   connection = new Connection(RPC_HTTP, {
     commitment: "finalized",
     wsEndpoint: RPC_WS,
-    confirmTransactionInitialTimeout: 40_000,
+    confirmTransactionInitialTimeout: 90_000,
 
   });
   return connection;
