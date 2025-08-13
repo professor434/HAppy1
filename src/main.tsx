@@ -1,3 +1,4 @@
+// src/main.tsx
 import "./buffer-polyfill";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -7,7 +8,7 @@ import SolanaProviders from "./providers/SolanaProviders";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { assertEnv } from "./lib/env";
 
-// Δείξε ξεκάθαρα τι βλέπει ο client από τα VITE_* (Vite → import.meta.env με VITE_ prefix)
+// Log για να δεις αμέσως τι περνάει από Vite
 console.log("[ENV]", {
   VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
   VITE_SOLANA_RPC_URL: import.meta.env.VITE_SOLANA_RPC_URL,
@@ -25,4 +26,3 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </SolanaProviders>
   </React.StrictMode>
 );
-
