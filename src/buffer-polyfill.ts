@@ -1,5 +1,12 @@
 // src/buffer-polyfill.ts
 import { Buffer } from "buffer";
-if (typeof window !== "undefined" && !(window as any).Buffer) {
-  (window as any).Buffer = Buffer;
+
+declare global {
+  interface Window {
+    Buffer?: typeof Buffer;
+  }
+}
+
+if (typeof window !== "undefined" && !window.Buffer) {
+  window.Buffer = Buffer;
 }
