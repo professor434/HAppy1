@@ -4,20 +4,21 @@ import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionSignature } from "@solana/web3.js";
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
-// ===== RPC (HTTPS + WSS) =====
+// ===== RPC (HTTP(S) + WSS) =====
 
 const ENV_VARS = (import.meta as any)?.env || {};
 const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_URL || "";
 const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
 
 
-function assertHttps(u: string) {
-  if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
-
+function assertHttp(u: string) {
+  if (!/^https?:\/\//i.test(u)) {
+    throw new Error("VITE_SOLANA_RPC_URL must be a valid http(s):// endpoint");
+  }
 }
 const RPC_HTTP = (() => {
   const u = String(RAW_HTTP).trim();
-  assertHttps(u);
+  assertHttp(u);
   return u;
 })();
 
