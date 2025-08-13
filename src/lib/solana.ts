@@ -3,9 +3,11 @@
 import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
 import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionSignature } from "@solana/web3.js";
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+
 import { getConnection } from "./rpc";
 
 const ENV_VARS = (import.meta as any)?.env || {};
+n
 
 // ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
 
