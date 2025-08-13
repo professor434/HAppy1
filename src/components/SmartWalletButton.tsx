@@ -1,5 +1,5 @@
 // src/components/SmartWalletButton.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import CustomWalletButton from "@/components/CustomWalletButton";
 import {
   hasInjectedWallet,
@@ -21,7 +21,9 @@ export default function SmartWalletButton() {
   useEffect(() => {
     try {
       setChoice(getPreferredWallet());
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     setReady(true);
   }, []);
 
@@ -32,15 +34,19 @@ export default function SmartWalletButton() {
     const onFocus = () => check();
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onFocus);
-    const t = setTimeout(check, 800);
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onFocus);
-      clearTimeout(t);
     };
   }, []);
 
-  useEffect(() => { try { setPreferredWallet(choice); } catch {} }, [choice]);
+  useEffect(() => {
+    try {
+      setPreferredWallet(choice);
+    } catch {
+      /* ignore */
+    }
+  }, [choice]);
 
   if (!ready) return null;
 
@@ -54,24 +60,20 @@ export default function SmartWalletButton() {
   const onOpen = () => openInWalletBrowser(location.href, choice);
   const onInstall = () => window.open(walletStoreUrl(choice), "_blank");
 
-  const Tab = useMemo(
-    () =>
-      function Tab({ value, label }: { value: WalletChoice; label: string }) {
-        const active = choice === value;
-        return (
-          <button
-            onClick={() => setChoice(value)}
-            className={[
-              "h-9 px-3 rounded-xl font-semibold transition",
-              active ? "bg-pink-500 text-white" : "bg-white/10 text-white/80 hover:bg-white/20",
-            ].join(" ")}
-          >
-            {label}
-          </button>
-        );
-      },
-    [choice]
-  );
+  function Tab({ value, label }: { value: WalletChoice; label: string }) {
+    const active = choice === value;
+    return (
+      <button
+        onClick={() => setChoice(value)}
+        className={[
+          "h-9 px-3 rounded-xl font-semibold transition",
+          active ? "bg-pink-500 text-white" : "bg-white/10 text-white/80 hover:bg-white/20",
+        ].join(" ")}
+      >
+        {label}
+      </button>
+    );
+  }
 
   return (
     <div className="flex flex-col items-end gap-2">

@@ -1,2 +1,9 @@
 import { Buffer } from "buffer";
-(window as any).Buffer = Buffer;
+
+declare global {
+  interface Window {
+    Buffer: typeof Buffer;
+  }
+}
+
+window.Buffer = Buffer;

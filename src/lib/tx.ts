@@ -24,13 +24,12 @@ export async function confirmWithRetry(
   params: { blockhash: string; lastValidBlockHeight: number },
   opts?: { commitment?: Commitment; maxSeconds?: number; pollMs?: number }
 ): Promise<RpcResponseAndContext<SignatureResult>> {
-  const commitment = opts?.commitment ?? "confirmed";
+  const commitment = opts?.commitment ?? "finalized";
   const pollMs = opts?.pollMs ?? 1200;
   const maxSeconds = opts?.maxSeconds ?? 90;
   const deadline = Date.now() + maxSeconds * 1000;
 
   await waitForVisibility();
-  await sleep(400);
 
   while (Date.now() < deadline) {
     try {
@@ -46,9 +45,9 @@ export async function confirmWithRetry(
   const status = await conn.getSignatureStatuses([signature], { searchTransactionHistory: true });
   const st = status?.value?.[0];
   if (st?.err == null && st?.confirmationStatus) {
-    return { context: { apiVersion: null as any, slot: st.slot ?? 0 }, value: { err: null } };
+    return { context: { apiVersion: undefined, slot: st.slot ?? 0 }, value: { err: null } };
   }
-  throw new Error("Transaction not confirmed within timeout");
+  throw new Error("Transaction not finalized within timeout");
 }
 
 // Quick ack for fast UI after signing
@@ -57,11 +56,10 @@ export async function sendAndAckVersionedTx(
   tx: VersionedTransaction,
   sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
-  await sleep(150);
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("processed");
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
-    commitment: "processed",
+    commitment: "finalized",
     maxSeconds: 30,
     pollMs: 600,
   });
@@ -73,8 +71,7 @@ export async function sendAndConfirmVersionedTx(
   tx: VersionedTransaction,
   sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
-  await sleep(250);
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
     commitment: "finalized",

@@ -14,12 +14,18 @@ export function isInWalletWebView() {
 
 export function hasInjectedWallet() {
   if (typeof window === "undefined") return false;
-  const w = window as any;
+  type Provider = { isPhantom?: boolean; isSolflare?: boolean };
+  const w = window as typeof window & {
+    solana?: Provider & { providers?: Provider[] };
+    phantom?: { solana?: { isPhantom?: boolean } };
+    solflare?: { isSolflare?: boolean };
+  };
   const sol = w.solana;
+  const providers = Array.isArray(sol?.providers) ? sol.providers : [];
   const hasPhantom =
-    !!(w.phantom?.solana?.isPhantom) || !!(sol?.isPhantom) || !!(sol?.providers?.some?.((p: any) => p?.isPhantom));
+    !!w.phantom?.solana?.isPhantom || !!sol?.isPhantom || providers.some((p) => p.isPhantom);
   const hasSolflare =
-    !!(w.solflare?.isSolflare) || !!(sol?.isSolflare) || !!(sol?.providers?.some?.((p: any) => p?.isSolflare));
+    !!w.solflare?.isSolflare || !!sol?.isSolflare || providers.some((p) => p.isSolflare);
   return Boolean(hasPhantom || hasSolflare);
 }
 
