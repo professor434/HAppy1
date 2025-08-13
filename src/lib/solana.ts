@@ -9,7 +9,7 @@ const RAW_HTTP = (import.meta as any)?.env?.VITE_SOLANA_RPC_URL || "";
 const RAW_WS   = (import.meta as any)?.env?.VITE_SOLANA_WS_URL || "";
 
 function assertHttps(u: string) {
-  if (!/^https:\/\//i.test(u)) throw new Error("https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2t");
+  if (!/^https:\/\//i.test(u)) throw new Error("https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2");
 }
 const RPC_HTTP = (() => {
   const u = String(RAW_HTTP).trim();
