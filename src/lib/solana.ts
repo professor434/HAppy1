@@ -72,14 +72,39 @@ async function signAndSendTransaction(
   // Mobile wallets usually expose sendTransaction()
   if (typeof (wallet as any).sendTransaction === "function") {
     const send = (wallet as any).sendTransaction.bind(wallet);
-    const sig: TransactionSignature = await send(transaction, connection, {
-      skipPreflight: false,
-      preflightCommitment: "finalized",
-      maxRetries: 3,
-    });
-    const res = await connection.confirmTransaction(sig, "finalized");
-    if (res.value?.err) throw new Error("Transaction failed");
-    return sig;
+    const trySend = async () => {
+      const sig: TransactionSignature = await send(transaction, connection, {
+        skipPreflight: false,
+        preflightCommitment: "finalized",
+        maxRetries: 3,
+      });
+      let res;
+      try {
+        res = await connection.confirmTransaction(sig, "finalized");
+      } catch (err) {
+        console.error("confirmTransaction error:", err);
+        throw err;
+      }
+      if (res.value?.err) {
+        const msg =
+          typeof res.value.err === "string"
+            ? res.value.err
+            : JSON.stringify(res.value.err);
+        console.error("Transaction failed:", msg);
+        throw new Error(msg);
+      }
+      return sig;
+    };
+    try {
+      return await trySend();
+    } catch (e: any) {
+      if (String(e?.message || "").includes("blockhash not found")) {
+        const latest = await connection.getLatestBlockhash("finalized");
+        transaction.recentBlockhash = latest.blockhash;
+        return await trySend();
+      }
+      throw e;
+    }
   }
 
   // Fallback: manual sign + robust confirm
@@ -94,15 +119,28 @@ async function signAndSendTransaction(
       skipPreflight: false,
       maxRetries: 3,
     });
-    const confirmation = await connection.confirmTransaction(
-      {
-        signature,
-        blockhash: latest.blockhash,
-        lastValidBlockHeight: latest.lastValidBlockHeight,
-      },
-      "finalized"
-    );
-    if (confirmation?.value?.err) throw new Error("Transaction error");
+    let confirmation;
+    try {
+      confirmation = await connection.confirmTransaction(
+        {
+          signature,
+          blockhash: latest.blockhash,
+          lastValidBlockHeight: latest.lastValidBlockHeight,
+        },
+        "finalized"
+      );
+    } catch (err) {
+      console.error("confirmTransaction error:", err);
+      throw err;
+    }
+    if (confirmation?.value?.err) {
+      const msg =
+        typeof confirmation.value.err === "string"
+          ? confirmation.value.err
+          : JSON.stringify(confirmation.value.err);
+      console.error("Transaction failed:", msg);
+      throw new Error(msg);
+    }
     return signature as TransactionSignature;
   };
 

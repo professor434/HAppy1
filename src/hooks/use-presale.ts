@@ -180,7 +180,8 @@ export function usePresale() {
       toast.success("Purchase completed successfully!");
     } catch (error) {
       console.error(error);
-      toast.error("Transaction failed");
+      const message = error instanceof Error ? error.message : "Transaction failed";
+      toast.error(message);
     } finally {
       setIsPending(false);
     }
