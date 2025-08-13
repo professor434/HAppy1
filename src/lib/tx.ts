@@ -26,7 +26,7 @@ export async function confirmWithRetry(
 ): Promise<RpcResponseAndContext<SignatureResult>> {
   const commitment = opts?.commitment ?? "finalized";
   const pollMs = opts?.pollMs ?? 1200;
-  const maxSeconds = opts?.maxSeconds ?? 90;
+  const maxSeconds = opts?.maxSeconds ?? 120;
   const deadline = Date.now() + maxSeconds * 1000;
 
   await waitForVisibility();
@@ -56,11 +56,14 @@ export async function sendAndAckVersionedTx(
   tx: VersionedTransaction,
   sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
+
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
+
     commitment: "finalized",
     maxSeconds: 30,
+
     pollMs: 600,
   });
   return sig;
@@ -71,6 +74,9 @@ export async function sendAndConfirmVersionedTx(
   tx: VersionedTransaction,
   sendTx: (tx: VersionedTransaction) => Promise<string>
 ) {
+
+  await sleep(250);
+
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
