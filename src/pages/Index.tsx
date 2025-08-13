@@ -9,7 +9,8 @@ import CountdownTimer from "@/components/CountdownTimer";
 import PurchaseForm from "@/components/PurchaseForm";
 import TierInfoList from "@/components/TierInfoList";
 import ClaimSection from "@/components/ClaimSection";
-import { formatPublicKey, SPL_MINT_ADDRESS } from "@/lib/solana";
+import { SPL_MINT_ADDRESS } from "@/lib/env";
+import { formatPublicKey } from "@/lib/solana";
 import { usePresale } from "@/hooks/use-presale";
 import { Spinner } from "@/components/ui/spinner";
 
