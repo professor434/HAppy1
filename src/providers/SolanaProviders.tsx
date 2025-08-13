@@ -1,22 +1,28 @@
 // src/providers/SolanaProviders.tsx
-import { PropsWithChildren, useMemo } from "react";
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { PropsWithChildren, useEffect, useMemo, useState } from "react";
+import { WalletProvider, ConnectionContext } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
+import type { Connection } from "@solana/web3.js";
+import { getConnection } from "@/lib/rpc";
 import "@solana/wallet-adapter-react-ui/styles.css";
-import { VITE_SOLANA_RPC_URL, VITE_SOLANA_WS_URL, COMMITMENT } from "@/lib/env";
 
 export default function SolanaProviders({ children }: PropsWithChildren) {
   const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
+  const [connection, setConnection] = useState<Connection | null>(null);
+
+  useEffect(() => {
+    getConnection().then(setConnection).catch(() => {});
+  }, []);
+
+  if (!connection) return null;
+
   return (
-    <ConnectionProvider
-      endpoint={VITE_SOLANA_RPC_URL}
-      config={{ commitment: COMMITMENT, wsEndpoint: VITE_SOLANA_WS_URL || undefined }}
-    >
+    <ConnectionContext.Provider value={{ connection }}>
       <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
-    </ConnectionProvider>
+    </ConnectionContext.Provider>
   );
 }
-

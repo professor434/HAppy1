@@ -157,7 +157,7 @@ export function usePresale() {
       if (!txSignature) throw new Error("No transaction signature returned");
       (window as unknown as { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
-      const rec = await recordPurchase({
+      void recordPurchase({
         wallet: publicKey.toString(),
         amount: penisAmount,
         token: paymentToken,
@@ -167,8 +167,7 @@ export function usePresale() {
         fee_paid_usdc: fee_paid_usdc ?? undefined,
         fee_paid_sol: fee_paid_sol ?? undefined,
         price_usdc_each: currentTier.price_usdc,
-      });
-      if (!rec) { toast.error("Purchase record failed. Try again."); return; }
+      }).catch(() => {});
 
       setTotalRaised((prev) => prev + penisAmount);
       setAmount("");

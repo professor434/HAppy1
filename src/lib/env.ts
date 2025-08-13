@@ -2,11 +2,8 @@
 import { PublicKey } from "@solana/web3.js";
 
 // Διαβάζουμε ΟΛΑ από import.meta.env (Vite)
-export const VITE_API_BASE_URL   = (import.meta.env.VITE_API_BASE_URL   ?? "").replace(/\/+$/, "");
-export const VITE_SOLANA_RPC_URL =
-  import.meta.env.VITE_SOLANA_RPC_URL ?? import.meta.env.VITE_SOLANA_QUICKNODE_URL ?? "";
-export const VITE_SOLANA_WS_URL  =  import.meta.env.VITE_SOLANA_WS_URL  ?? "";
-export const VITE_CANONICAL_URL  =  import.meta.env.VITE_CANONICAL_URL  ?? "";
+export const VITE_API_BASE_URL  = (import.meta.env.VITE_API_BASE_URL  ?? "").replace(/\/+$/, "");
+export const VITE_CANONICAL_URL =  import.meta.env.VITE_CANONICAL_URL  ?? "";
 
 // Γρήγορο UI: processed (confirmed/finalized τα χρησιμοποιούμε στο confirm)
 export const COMMITMENT: "processed" | "confirmed" | "finalized" = "processed";
@@ -21,10 +18,7 @@ export const USDC_MINT_ADDRESS = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4w
 export function assertEnv() {
   // Αυτά είναι τα ελάχιστα που περιμένουμε στο client
   const missing: string[] = [];
-  if (!VITE_SOLANA_RPC_URL) missing.push("VITE_SOLANA_RPC_URL");
-  if (!VITE_API_BASE_URL)   missing.push("VITE_API_BASE_URL");
-  // Το WS είναι προαιρετικό, γι’ αυτό δεν το μαρκάρω missing
-
+  if (!VITE_API_BASE_URL) missing.push("VITE_API_BASE_URL");
   if (missing.length) {
     // Δεν ρίχνουμε build· απλώς κράζουμε ξεκάθαρα στο console για να το δεις αμέσως
     // (Vite αντικαθιστά import.meta.env στο build, γι’ αυτό ο έλεγχος είναι runtime)

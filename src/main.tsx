@@ -11,8 +11,6 @@ import { assertEnv } from "./lib/env";
 // Log για να δεις αμέσως τι περνάει από Vite
 console.log("[ENV]", {
   VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
-  VITE_SOLANA_RPC_URL: import.meta.env.VITE_SOLANA_RPC_URL,
-  VITE_SOLANA_WS_URL: import.meta.env.VITE_SOLANA_WS_URL,
   VITE_CANONICAL_URL: import.meta.env.VITE_CANONICAL_URL,
 });
 assertEnv();

@@ -1,45 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* src/lib/solana.ts */
 import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
-import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionSignature } from "@solana/web3.js";
+import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionSignature } from "@solana/web3.js";
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
-
-// ===== RPC (HTTPS + WSS) =====
+import { getConnection } from "./rpc";
 
 const ENV_VARS = (import.meta as any)?.env || {};
-const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_URL || "";
-const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
-
-
-function assertHttps(u: string) {
-  if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
-
-}
-const RPC_HTTP = (() => {
-  const u = String(RAW_HTTP).trim();
-  assertHttps(u);
-  return u;
-})();
-
-
-// Only use an explicit WS endpoint if it begins with ws:// or wss://.
-// Otherwise, let @solana/web3.js derive it from the HTTP RPC URL.
-const RPC_WS = (() => {
-  const w = String(RAW_WS).trim();
-  if (!w) return undefined;
-  if (!/^wss?:\/\//i.test(w)) {
-    console.warn("[env] Ignoring invalid VITE_SOLANA_WS_URL:", w);
-    return undefined;
-  }
-  return w;
-})();
-
-
-export const connection = new Connection(RPC_HTTP, {
-  commitment: "confirmed",
-  wsEndpoint: RPC_WS,
-  confirmTransactionInitialTimeout: 90_000,
-});
 
 // ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
 
@@ -65,6 +31,7 @@ const toUSDCUnits = (u: number) => Math.floor(u * 1_000_000);
 
 // ===== Mobile-friendly signer =====
 async function signAndSendTransaction(
+  connection: Awaited<ReturnType<typeof getConnection>>,
   transaction: Transaction,
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
@@ -110,6 +77,8 @@ export async function executeSOLPayment(
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
 
+  const connection = await getConnection();
+
   const feePct = BUY_FEE_PERCENTAGE / 100;
   const mainAmount = amountSOL * (1 - feePct);
   const feeAmount  = amountSOL * feePct;
@@ -122,7 +91,7 @@ export async function executeSOLPayment(
     SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: TREASURY_WALLET, lamports: toLamports(mainAmount) }),
     SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET,      lamports: toLamports(feeAmount)  }),
   );
-  return signAndSendTransaction(tx, wallet);
+  return signAndSendTransaction(connection, tx, wallet);
 }
 
 // ===== USDC Payment (main + fee) =====
@@ -131,6 +100,8 @@ export async function executeUSDCPayment(
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
+
+  const connection = await getConnection();
 
   const feePct  = BUY_FEE_PERCENTAGE / 100;
   const mainU64 = toUSDCUnits(amountUSDC * (1 - feePct));
@@ -151,7 +122,7 @@ export async function executeUSDCPayment(
   if (mainU64 > 0) tx.add(createTransferInstruction(from, toMain, owner, mainU64));
   if (feeU64  > 0) tx.add(createTransferInstruction(from, toFee,  owner, feeU64));
 
-  return signAndSendTransaction(tx, wallet);
+  return signAndSendTransaction(connection, tx, wallet);
 }
 
 // ===== Claim Fee (flat SOL) =====
@@ -159,12 +130,13 @@ export async function executeClaimFeePayment(
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
+  const connection = await getConnection();
   const claimFeeSOL = ENV_VARS.VITE_CLAIM_FEE_SOL ? Number(ENV_VARS.VITE_CLAIM_FEE_SOL) : 0.0005;
 
   const tx = new Transaction().add(
     SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET, lamports: toLamports(claimFeeSOL) })
   );
-  return signAndSendTransaction(tx, wallet);
+  return signAndSendTransaction(connection, tx, wallet);
 }
 
 
