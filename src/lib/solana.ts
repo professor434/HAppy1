@@ -1,32 +1,32 @@
-// src/lib/solana.ts
-import {
-  Connection, PublicKey, VersionedTransaction, TransactionInstruction,
-  TransactionMessage, ComputeBudgetProgram, Commitment,
-  RpcResponseAndContext, SignatureResult
-} from "@solana/web3.js";
-import { COMMITMENT, TX_TIMEOUT_MS, VITE_SOLANA_RPC_URL } from "@/lib/env";
+// src/lib/api.ts
+const RAW = import.meta.env.VITE_API_BASE_URL as string;   // π.χ. https://happy-pennis.up.railway.app
+if (!RAW) console.warn("[ENV] VITE_API_BASE_URL is empty");
+const BASE = RAW.replace(/\/+$/, "");                      // κόψε τυχόν τελικά '/'
 
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-export const makeConnection = () =>
-  new Connection(VITE_SOLANA_RPC_URL, { commitment: COMMITMENT });
-
-// Ελαφρύ build V0 tx (χωρίς υπερβολές, σταθερό για κινητά)
-export async function buildV0Tx(
-  payer: PublicKey, ixs: TransactionInstruction[], conn = makeConnection()
-): Promise<VersionedTransaction> {
-  const { blockhash } = await conn.getLatestBlockhash({ commitment: COMMITMENT as Commitment });
-  const msg = new TransactionMessage({
-    payerKey: payer,
-    recentBlockhash: blockhash,
-    instructions: [
-      // λίγη «ανάσα» σε compute units για σταθερότητα
-      ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
-      ...ixs,
-    ],
-  }).compileToV0Message();
-  return new VersionedTransaction(msg);
+function url(path: string) {
+  return path.startsWith("/") ? `${BASE}${path}` : `${BASE}/${path}`;
 }
+
+export async function j<T>(path: string, init?: RequestInit): Promise<T> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15000); // 15s timeout για να μη μένεις «λευκός»
+  try {
+    const res = await fetch(url(path), {
+      ...init,
+      headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+      signal: ctrl.signal,
+      // credentials: "include", // μόνο αν χρησιμοποιείς cookies
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`API ${res.status} ${res.statusText} @ ${url(path)} ${txt ? "– " + txt : ""}`);
+    }
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 
 // Polling confirm + searchTransactionHistory: true για «άτρωτο» confirm
 export async function confirmWithRetry(
