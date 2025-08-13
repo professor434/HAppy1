@@ -1,236 +1,240 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+// src/hooks/use-presale.ts
+import { useCallback, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { toast } from "sonner";
-import { useToast } from "@/components/ui/use-toast";
 import {
-  executeSOLPayment,
-  executeUSDCPayment,
-  executeClaimFeePayment,
-  BUY_FEE_PERCENTAGE,
-} from "@/lib/solana";
+  Connection,
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import {
-  recordPurchase,
-  canClaimTokensBulk,
-  recordClaim,
-  getPresaleStatus,
-  type TierInfo,
-} from "@/lib/api";
-import { useIsMobile } from "@/hooks/use-mobile";
+  createTransferCheckedInstruction,
+  getAssociatedTokenAddress,
+} from "@solana/spl-token";
 
-type PaymentToken = "SOL" | "USDC";
+import { j } from "@/lib/api"; // helper για backend calls
+import {
+  FEE_WALLET,
+  TREASURY_WALLET,
+  USDC_MINT_ADDRESS,
+  VITE_SOLANA_RPC_URL,
+  COMMITMENT,
+} from "@/lib/env";
+import { buildV0Tx, signSendAndConfirm } from "@/lib/solana";
 
-const SOL_TO_USDC_RATE = 170;
-const PROD_URL = (import.meta.env.VITE_PROD_URL as string) || "https://happypennisofficialpresale.vercel.app/";
+/** 0.4% fee (π.004). Άφησέ το εδώ ώστε αν αλλάξει, να αλλάζει σε ένα σημείο. */
+const FEE_RATE = 0.004;
 
-export function usePresale() {
-  const { toast: uiToast } = useToast();
-  const { publicKey, connected, signTransaction, sendTransaction, connect } = useWallet();
-  const isMobile = useIsMobile();
+/** Βοηθητικό: lamports από SOL */
+const solToLamports = (sol: number) => Math.round(sol * 1_000_000_000);
 
-  const [tiers, setTiers] = useState<TierInfo[]>([]);
-  const [currentTier, setCurrentTier] = useState<TierInfo | null>(null);
-  const [totalRaised, setTotalRaised] = useState(0);
-  const [amount, setAmount] = useState("");
-  const [paymentToken, setPaymentToken] = useState<PaymentToken>("SOL");
-  const [isPending, setIsPending] = useState(false);
-  const [presaleEnded, setPresaleEnded] = useState(false);
-  const [claimableTokens, setClaimableTokens] = useState<null | { canClaim: boolean; total?: string }>(null);
-  const [isClaimPending, setIsClaimPending] = useState(false);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/** Βοηθητικό: USDC σε “μικρές μονάδες” (6 δεκαδικά) */
+const usdcToUnits = (usdc: number) => Math.round(usdc * 1_000_000);
 
-  const lastWallet = useRef<string | null>(null);
+/** State που επιστρέφει το hook */
+export type PresaleState = {
+  loading: boolean;
+  lastSig?: string;
+  error?: string;
+};
 
-  const hasInjected = () => {
-    if (typeof window === "undefined") return false;
-    const w = window as typeof window & { solana?: { isPhantom?: boolean }; solflare?: unknown };
-    return w.solana?.isPhantom || w.solflare;
-  };
+/** Πακέτο ενεργειών που εκθέτει το hook */
+export type PresaleActions = {
+  /** Αγορά με SOL: δίνεις ποσό σε SOL & πόσα PENIS tokens αντιστοιχούν στην τιμή */
+  buyWithSOL: (params: { solAmount: number; tokens: number; price_usdc_each: number }) => Promise<string>;
+  /** Αγορά με USDC: δίνεις ποσό σε USDC & πόσα PENIS tokens */
+  buyWithUSDC: (params: { usdcAmount: number; tokens: number; price_usdc_each: number }) => Promise<string>;
+  /** Κλείδωμα claim στο backend (αν έχεις on-chain claim, πρόσθεσε ixs αναλόγως) */
+  claim: (params: { tokens: number }) => Promise<string>;
+};
 
-  useEffect(() => {
-    if (isMobile && hasInjected() && !connected) connect().catch(() => {});
-  }, [connected, connect, isMobile]);
+export function usePresale(): [PresaleState, PresaleActions] {
+  const { publicKey, wallet } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [lastSig, setLastSig] = useState<string | undefined>();
+  const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (connected) {
-      const target = PROD_URL;
-      if (typeof window !== "undefined" && window.location.href !== target) {
-        window.location.href = target;
+  const connection = useMemo(
+    () => new Connection(VITE_SOLANA_RPC_URL, { commitment: COMMITMENT }),
+    []
+  );
+
+  const guard = useCallback(() => {
+    if (!wallet || !publicKey) throw new Error("Σύνδεσε wallet πρώτα.");
+  }, [wallet, publicKey]);
+
+  /** Χτίζουμε δύο μεταφορές: fee → FEE_WALLET και καθαρό → TREASURY_WALLET */
+  const buildSOLPurchaseIxs = useCallback(
+    (from: PublicKey, lamportsTotal: number) => {
+      const feeLamports = Math.max(Math.floor(lamportsTotal * FEE_RATE), 0);
+      const netLamports = lamportsTotal - feeLamports;
+
+      if (netLamports <= 0) throw new Error("Ποσό SOL πολύ μικρό μετά το fee.");
+
+      const ixs: TransactionInstruction[] = [
+        SystemProgram.transfer({
+          fromPubkey: from,
+          toPubkey: TREASURY_WALLET,
+          lamports: netLamports,
+        }),
+      ];
+
+      if (feeLamports > 0) {
+        ixs.push(
+          SystemProgram.transfer({
+            fromPubkey: from,
+            toPubkey: FEE_WALLET,
+            lamports: feeLamports,
+          })
+        );
       }
-    }
-  }, [connected]);
+      return { ixs, feeLamports, netLamports };
+    },
+    []
+  );
 
-  useEffect(() => {
-    if (connected && publicKey) {
-      const key = publicKey.toString();
-      if (lastWallet.current !== key) {
-        lastWallet.current = key;
-        checkClaimStatus();
+  /** Μεταφορά USDC: φτιάχνει ATA αν χρειάζεται (μόνο για source) και κάνει δύο transferChecked */
+  const buildUSDCPurchaseIxs = useCallback(
+    async (from: PublicKey, usdcUnitsTotal: number) => {
+      const feeUnits = Math.max(Math.floor(usdcUnitsTotal * FEE_RATE), 0);
+      const netUnits = usdcUnitsTotal - feeUnits;
+      if (netUnits <= 0) throw new Error("Ποσό USDC πολύ μικρό μετά το fee.");
+
+      const fromAta = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, from, false);
+      const treasuryAta = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, TREASURY_WALLET, true);
+      const feeAta = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, FEE_WALLET, true);
+
+      const ixs: TransactionInstruction[] = [];
+
+      // ΜΟΝΟ αν δεν υπάρχει το from ATA, ο χρήστης δεν έχει καθόλου USDC — τότε θα αποτύχει έτσι κι αλλιώς.
+      // Εδώ ΔΕΝ δημιουργούμε ATA για recipient (treasury/fee) γιατί είναι γνωστά wallets και πρέπει ήδη να τα έχουν.
+      // Αν θέλεις να τα δημιουργείς αυτόματα, πρέπει να καλέσεις createAssociatedTokenAccountInstruction.
+
+      ixs.push(
+        createTransferCheckedInstruction(
+          fromAta,
+          USDC_MINT_ADDRESS,
+          treasuryAta,
+          from,
+          netUnits,
+          6 // USDC decimals
+        )
+      );
+      if (feeUnits > 0) {
+        ixs.push(
+          createTransferCheckedInstruction(
+            fromAta,
+            USDC_MINT_ADDRESS,
+            feeAta,
+            from,
+            feeUnits,
+            6
+          )
+        );
       }
-    } else {
-      setClaimableTokens(null);
-      lastWallet.current = null;
-    }
-  }, [connected, publicKey]);
 
-  useEffect(() => {
-    fetchPresaleStatus();
-  }, []);
+      return { ixs, feeUnits, netUnits };
+    },
+    []
+  );
 
-  useEffect(() => {
-    if (!tiers.length) return;
-    let raisedSoFar = 0;
-    for (const tier of tiers) {
-      if (raisedSoFar + tier.max_tokens > totalRaised) {
-        setCurrentTier(tier);
-        break;
-      }
-      raisedSoFar += tier.max_tokens;
-    }
-  }, [totalRaised, tiers]);
-
-  const fetchPresaleStatus = async () => {
+  /** Αγορά με SOL */
+  const buyWithSOL = useCallback<PresaleActions["buyWithSOL"]>(async ({ solAmount, tokens, price_usdc_each }) => {
+    setLoading(true); setError(undefined);
     try {
-      setIsCheckingStatus(true);
-      setError(null);
-      const status = await getPresaleStatus();
-      if (status) {
-        setTotalRaised(status.raised);
-        setPresaleEnded(!!status.presaleEnded);
-        setCurrentTier(status.currentTier);
-        setTiers([status.currentTier]);
-      }
-    } catch (e) {
-      console.error("status error:", e);
-      const message = e instanceof Error ? e.message : "Failed to load presale data";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setIsCheckingStatus(false);
-    }
-  };
+      guard();
+      const lamportsTotal = solToLamports(solAmount);
+      const { ixs, feeLamports, netLamports } = buildSOLPurchaseIxs(publicKey!, lamportsTotal);
 
-  const checkClaimStatus = async () => {
-    if (!publicKey || !connected) return;
-    try {
-      setIsCheckingStatus(true);
-      const map = await canClaimTokensBulk([publicKey.toString()]);
-      const info = map.get(publicKey.toString());
-      setClaimableTokens(info ? { canClaim: info.canClaim, total: info.total } : null);
-    } catch {
-      toast.error("Failed to check claim status");
-      setClaimableTokens(null);
-    } finally {
-      setIsCheckingStatus(false);
-    }
-  };
+      const tx = await buildV0Tx(publicKey!, ixs, connection);
+      const sig = await signSendAndConfirm(wallet!, publicKey!, ixs); // mobile-friendly
 
-  const buyTokens = async () => {
-    toast.info("Starting purchase process...");
-    if (!connected) {
-      try { await connect(); } catch { return; }
-    }
-    if (!publicKey) { toast.error("Wallet not connected"); return; }
-    if (!amount || parseFloat(amount) <= 0 || !currentTier) { toast.error("Invalid amount"); return; }
-
-    setIsPending(true);
-    try {
-      const penisAmount = parseFloat(amount);
-      const totalPriceUSDC = penisAmount * currentTier.price_usdc;
-      const feePct = BUY_FEE_PERCENTAGE / 100;
-      let txSignature: string | null = null;
-      let total_paid_usdc: number | null = null;
-      let total_paid_sol: number | null = null;
-      let fee_paid_usdc: number | null = null;
-      let fee_paid_sol: number | null = null;
-
-      if (paymentToken === "SOL" && publicKey && signTransaction) {
-        const solAmount = totalPriceUSDC / SOL_TO_USDC_RATE;
-        txSignature = await executeSOLPayment(solAmount, { publicKey, signTransaction, sendTransaction });
-        total_paid_sol = +solAmount.toFixed(6);
-        fee_paid_sol = +(solAmount * feePct).toFixed(6);
-      } else if (paymentToken === "USDC" && publicKey && signTransaction) {
-        txSignature = await executeUSDCPayment(totalPriceUSDC, { publicKey, signTransaction, sendTransaction });
-        total_paid_usdc = +totalPriceUSDC.toFixed(6);
-        fee_paid_usdc = +(totalPriceUSDC * feePct).toFixed(6);
-      } else {
-        toast.error("Invalid payment method or wallet not properly connected");
-        throw new Error("payment method");
-      }
-
-      if (!txSignature) throw new Error("No transaction signature returned");
-      (window as unknown as { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
-
-      const rec = await recordPurchase({
-        wallet: publicKey.toString(),
-        amount: penisAmount,
-        token: paymentToken,
-        transaction_signature: txSignature,
-        total_paid_usdc: total_paid_usdc ?? undefined,
-        total_paid_sol: total_paid_sol ?? undefined,
-        fee_paid_usdc: fee_paid_usdc ?? undefined,
-        fee_paid_sol: fee_paid_sol ?? undefined,
-        price_usdc_each: currentTier.price_usdc,
+      // Καταγραφή στο backend (όπως το backend/server.js σου)
+      await j("/buy", {
+        method: "POST",
+        body: JSON.stringify({
+          wallet: publicKey!.toBase58(),
+          amount: tokens,                // πόσα PENIS αγόρασε
+          token: "SOL",
+          transaction_signature: sig,
+          total_paid_sol: (netLamports + feeLamports) / 1_000_000_000,
+          fee_paid_sol: feeLamports / 1_000_000_000,
+          price_usdc_each,
+        }),
       });
-      if (!rec) { toast.error("Purchase record failed. Try again."); return; }
 
-      setTotalRaised((prev) => prev + penisAmount);
-      setAmount("");
-      checkClaimStatus();
-      toast.success("Purchase completed successfully!");
-    } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : "Transaction failed";
-      toast.error(message);
+      setLastSig(sig);
+      return sig;
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+      throw e;
     } finally {
-      setIsPending(false);
+      setLoading(false);
     }
-  };
+  }, [publicKey, wallet, connection, buildSOLPurchaseIxs, guard]);
 
-  const claimTokens = async () => {
-    if (!connected) {
-      try { await connect(); } catch { return; }
-    }
-    if (!publicKey || !claimableTokens?.canClaim || !claimableTokens.total) return;
-    setIsClaimPending(true);
+  /** Αγορά με USDC */
+  const buyWithUSDC = useCallback<PresaleActions["buyWithUSDC"]>(async ({ usdcAmount, tokens, price_usdc_each }) => {
+    setLoading(true); setError(undefined);
     try {
-      const tokenAmount = parseFloat(claimableTokens.total);
-      const txSignature = await executeClaimFeePayment({ publicKey, signTransaction, sendTransaction });
-      if (!txSignature) throw new Error("Claim fee payment failed");
-      const resp = await recordClaim({ wallet: publicKey.toString(), transaction_signature: txSignature });
-      if (!resp?.success) throw new Error("Failed to record claim on server");
-      uiToast({ title: "Claim Successful!", description: `You claimed ${tokenAmount.toLocaleString()} PENIS tokens` });
-      setClaimableTokens({ ...claimableTokens, canClaim: false });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : undefined;
-      uiToast({ title: "Claim Failed", description: message || "Could not complete the claim.", variant: "destructive" });
+      guard();
+      const units = usdcToUnits(usdcAmount);
+      const { ixs, feeUnits, netUnits } = await buildUSDCPurchaseIxs(publicKey!, units);
+
+      const tx = await buildV0Tx(publicKey!, ixs, connection);
+      const sig = await signSendAndConfirm(wallet!, publicKey!, ixs);
+
+      await j("/buy", {
+        method: "POST",
+        body: JSON.stringify({
+          wallet: publicKey!.toBase58(),
+          amount: tokens,
+          token: "USDC",
+          transaction_signature: sig,
+          total_paid_usdc: (netUnits + feeUnits) / 1_000_000,
+          fee_paid_usdc: feeUnits / 1_000_000,
+          price_usdc_each,
+        }),
+      });
+
+      setLastSig(sig);
+      return sig;
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+      throw e;
     } finally {
-      setIsClaimPending(false);
+      setLoading(false);
     }
-  };
+  }, [publicKey, wallet, connection, buildUSDCPurchaseIxs, guard]);
 
-  const goalTokens = useMemo(() => tiers.reduce((s, t) => s + (t.max_tokens || 0), 0), [tiers]);
-  const raisedPercentage = useMemo(() => (totalRaised / goalTokens) * 100, [totalRaised, goalTokens]);
+  /** Claim: backend-only καταγραφή (αν αργότερα βάλεις on-chain claim, πρόσθεσε ixs εδώ) */
+  const claim = useCallback<PresaleActions["claim"]>(async ({ tokens }) => {
+    setLoading(true); setError(undefined);
+    try {
+      guard();
+      // Αν βάλεις on-chain claim, εδώ χτίζεις ixs και στέλνεις όπως στα buy.*
+      // Για τώρα, μόνο backend log ώστε να μη σπάσει η ροή σου:
+      const fakeSig = `claim_${Date.now()}`;
+      await j("/claim", {
+        method: "POST",
+        body: JSON.stringify({
+          wallet: publicKey!.toBase58(),
+          transaction_signature: fakeSig,
+          tokens,
+        }),
+      });
+      setLastSig(fakeSig);
+      return fakeSig;
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [publicKey, guard]);
 
-  return {
-    tiers,
-    currentTier,
-    totalRaised,
-    amount,
-    setAmount,
-    paymentToken,
-    setPaymentToken,
-    isPending,
-    presaleEnded,
-    claimableTokens,
-    isClaimPending,
-    isCheckingStatus,
-    buyTokens,
-    claimTokens,
-    connected,
-    goalTokens,
-    raisedPercentage,
-    isMobile,
-    error,
-  };
+  return [
+    { loading, lastSig, error },
+    { buyWithSOL, buyWithUSDC, claim },
+  ];
 }
