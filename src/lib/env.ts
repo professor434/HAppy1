@@ -16,6 +16,7 @@ export const SPL_MINT_ADDRESS  = new PublicKey("GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZ
 export const TREASURY_WALLET   = new PublicKey("6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD");
 export const FEE_WALLET        = new PublicKey("J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn");
 export const USDC_MINT_ADDRESS = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+
 export function assertEnv() {
   // Αυτά είναι τα ελάχιστα που περιμένουμε στο client
   const missing: string[] = [];
