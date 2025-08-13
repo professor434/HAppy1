@@ -1,18 +1,36 @@
-// παράδειγμα σε hook ή component που φορτώνει τα data (π.χ. use-presale / Index)
-const [err, setErr] = useState<string | null>(null);
-const [status, setStatus] = useState<any>(null);
+// src/ErrorBoundary.tsx
+import React, { Component, ReactNode } from "react";
 
-useEffect(() => {
-  (async () => {
-    try {
-      const s = await j("/status");
-      setStatus(s);
-    } catch (e) {
-      console.error("[PRESALE STATUS FAIL]", e);
-      setErr((e as Error).message);
+type Props = { children: ReactNode };
+type State = { error?: any };
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { error: undefined };
+
+  static getDerivedStateFromError(error: any): State {
+    // Δείχνουμε fallback UI αντί για «λευκή»
+    return { error };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    // Log για prod/analytics
+    console.error("[UI ERROR]", error, info);
+  }
+
+  render() {
+    const { error } = this.state;
+    if (error) {
+      return (
+        <div style={{ padding: 20, color: "#c00", fontFamily: "ui-sans-serif" }}>
+          <h2>Κάτι πήγε στραβά στο render.</h2>
+          <pre style={{ whiteSpace: "pre-wrap" }}>
+            {String(error?.message ?? error)}
+          </pre>
+        </div>
+      );
     }
-  })();
-}, []);
+    return this.props.children;
+  }
+}
 
-if (err) return <div style={{padding:16,color:"#c00"}}>API error: {err}</div>;
-if (!status) return <div>Loading presale…</div>;
+export default ErrorBoundary;
