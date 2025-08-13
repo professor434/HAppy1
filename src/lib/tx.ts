@@ -4,7 +4,8 @@ import { Connection, VersionedTransaction } from "@solana/web3.js";
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function waitForVisibility() {
+export async function waitForVisibility(skipOnMobile = false) {
+  if (skipOnMobile) return;
   if (typeof document === "undefined") return;
   if (document.visibilityState === "visible") return;
   await new Promise<void>((resolve) => {
@@ -22,14 +23,14 @@ export async function confirmWithRetry(
   conn: Connection,
   signature: string,
   params: { blockhash: string; lastValidBlockHeight: number },
-  opts?: { commitment?: Commitment; maxSeconds?: number; pollMs?: number }
+  opts?: { commitment?: Commitment; maxSeconds?: number; pollMs?: number; skipOnMobile?: boolean }
 ): Promise<RpcResponseAndContext<SignatureResult>> {
   const commitment = opts?.commitment ?? "finalized";
   const pollMs = opts?.pollMs ?? 1200;
   const maxSeconds = opts?.maxSeconds ?? 120;
   const deadline = Date.now() + maxSeconds * 1000;
 
-  await waitForVisibility();
+  await waitForVisibility(opts?.skipOnMobile);
   await sleep(400);
 
   while (Date.now() < deadline) {
@@ -55,17 +56,17 @@ export async function confirmWithRetry(
 export async function sendAndAckVersionedTx(
   conn: Connection,
   tx: VersionedTransaction,
-  sendTx: (tx: VersionedTransaction) => Promise<string>
+  sendTx: (tx: VersionedTransaction) => Promise<string>,
+  opts?: { skipOnMobile?: boolean }
 ) {
   await sleep(150);
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
   const sig = await sendTx(tx);
   await confirmWithRetry(conn, sig, { blockhash, lastValidBlockHeight }, {
-
     commitment: "finalized",
     maxSeconds: 30,
-
     pollMs: 600,
+    skipOnMobile: opts?.skipOnMobile,
   });
   return sig;
 }
@@ -73,7 +74,8 @@ export async function sendAndAckVersionedTx(
 export async function sendAndConfirmVersionedTx(
   conn: Connection,
   tx: VersionedTransaction,
-  sendTx: (tx: VersionedTransaction) => Promise<string>
+  sendTx: (tx: VersionedTransaction) => Promise<string>,
+  opts?: { skipOnMobile?: boolean }
 ) {
   await sleep(250);
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("finalized");
@@ -82,6 +84,7 @@ export async function sendAndConfirmVersionedTx(
     commitment: "finalized",
     maxSeconds: 90,
     pollMs: 1200,
+    skipOnMobile: opts?.skipOnMobile,
   });
   return sig;
 }
