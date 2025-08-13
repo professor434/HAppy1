@@ -23,7 +23,7 @@ const QUICKNODE_RPC =
   s(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (E as any).VITE_SOLANA_QUICKNODE_URL
-  ) || "https://solana-mainnet.quiknode.pro/";
+  ) || "https://broken-purple-breeze.solana-mainnet.quiknode.pro/b087363c02a61ba4c37f9acd5c3c4dcc7b20420f";
 
 export const RPC_URLS = [PRIMARY_RPC, QUICKNODE_RPC];
 
