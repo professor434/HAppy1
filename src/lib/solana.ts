@@ -4,22 +4,25 @@ import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionSignature } from "@solana/web3.js";
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
-// ===== RPC (HTTPS + WSS) =====
+// ===== RPC (HTTP(S) + WSS) =====
 
 const ENV_VARS = (import.meta as any)?.env || {};
 const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_URL || "";
 const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
 
 
-function assertHttps(u: string) {
-  if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
-
-}
-const RPC_HTTP = (() => {
+function getHttpRpc(): string {
   const u = String(RAW_HTTP).trim();
-  assertHttps(u);
-  return u;
-})();
+  if (/^https?:\/\//i.test(u)) {
+    return u;
+  }
+  console.warn(
+    "[env] Invalid VITE_SOLANA_RPC_URL/VITE_SOLANA_QUICKNODE_URL, falling back to http://localhost:8899:",
+    u,
+  );
+  return "http://localhost:8899";
+}
+const RPC_HTTP = getHttpRpc();
 
 
 // Only use an explicit WS endpoint if it begins with ws:// or wss://.
