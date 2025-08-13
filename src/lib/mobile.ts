@@ -14,13 +14,25 @@ export function isInWalletWebView() {
 
 export function hasInjectedWallet() {
   if (typeof window === "undefined") return false;
-  const w = window as any;
+  const w = window as {
+    phantom?: { solana?: { isPhantom?: boolean } };
+    solana?: {
+      isPhantom?: boolean;
+      isSolflare?: boolean;
+      providers?: Array<{ isPhantom?: boolean; isSolflare?: boolean }>;
+    };
+    solflare?: { isSolflare?: boolean };
+  };
   const sol = w.solana;
   const hasPhantom =
-    !!(w.phantom?.solana?.isPhantom) || !!(sol?.isPhantom) || !!(sol?.providers?.some?.((p: any) => p?.isPhantom));
+    Boolean(w.phantom?.solana?.isPhantom) ||
+    Boolean(sol?.isPhantom) ||
+    Boolean(sol?.providers?.some((p) => p?.isPhantom));
   const hasSolflare =
-    !!(w.solflare?.isSolflare) || !!(sol?.isSolflare) || !!(sol?.providers?.some?.((p: any) => p?.isSolflare));
-  return Boolean(hasPhantom || hasSolflare);
+    Boolean(w.solflare?.isSolflare) ||
+    Boolean(sol?.isSolflare) ||
+    Boolean(sol?.providers?.some((p) => p?.isSolflare));
+  return hasPhantom || hasSolflare;
 }
 
 const deepLinks = {
