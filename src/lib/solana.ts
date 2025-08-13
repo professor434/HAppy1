@@ -77,3 +77,19 @@ export async function signSendAndConfirm(
   await confirmWithRetry(conn, sig, bh, { commitment: "finalized" });
   return sig;
 }
+// --- ΒΑΛ' ΤΟ ΚΑΤΩ-ΚΑΤΩ ΣΤΟ src/lib/solana.ts (ή κοντά στα άλλα exports) ---
+
+/** Συντομογραφεί ένα public key: ABCDEF...XYZ123 */
+export function formatPublicKey(
+  pk: string | import("@solana/web3.js").PublicKey,
+  head = 6,
+  tail = 6
+): string {
+  const s = typeof pk === "string" ? pk : pk.toBase58();
+  if (s.length <= head + tail + 3) return s;
+  return `${s.slice(0, head)}...${s.slice(-tail)}`;
+}
+
+// (προαιρετικό) αν θες να μείνουν ίδια τα imports παλιού κώδικα:
+export { SPL_MINT_ADDRESS } from "@/lib/env";
+
