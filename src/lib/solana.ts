@@ -5,18 +5,22 @@ import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, Tr
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
 // ===== RPC (HTTPS + WSS) =====
+
 const ENV_VARS = (import.meta as any)?.env || {};
 const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_URL || "";
 const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
 
+
 function assertHttps(u: string) {
   if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
+
 }
 const RPC_HTTP = (() => {
   const u = String(RAW_HTTP).trim();
   assertHttps(u);
   return u;
 })();
+
 
 // Only use an explicit WS endpoint if it begins with ws:// or wss://.
 // Otherwise, let @solana/web3.js derive it from the HTTP RPC URL.
@@ -30,6 +34,7 @@ const RPC_WS = (() => {
   return w;
 })();
 
+
 export const connection = new Connection(RPC_HTTP, {
   commitment: "confirmed",
   wsEndpoint: RPC_WS,
@@ -37,6 +42,7 @@ export const connection = new Connection(RPC_HTTP, {
 });
 
 // ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
+
 export const SPL_MINT_ADDRESS: string =
   ENV_VARS.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 
@@ -48,6 +54,7 @@ const FEE_WALLET_STR =
 
 export const BUY_FEE_PERCENTAGE =
   ENV_VARS.VITE_BUY_FEE_PERCENTAGE ? Number(ENV_VARS.VITE_BUY_FEE_PERCENTAGE) : 2;
+
 
 export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
 export const FEE_WALLET = new PublicKey(FEE_WALLET_STR);
@@ -159,6 +166,7 @@ export async function executeClaimFeePayment(
   );
   return signAndSendTransaction(tx, wallet);
 }
+
 
 export function formatPublicKey(k: string | PublicKey) {
   const s = typeof k === "string" ? k : k.toBase58();
