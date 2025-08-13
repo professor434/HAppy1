@@ -12,14 +12,28 @@ const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
 
 
 function assertHttps(u: string) {
-  if (!/^https:\/\//i.test(u)) throw new Error("https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2");
+  if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
+
 }
 const RPC_HTTP = (() => {
   const u = String(RAW_HTTP).trim();
   assertHttps(u);
   return u;
 })();
-const RPC_WS   = RAW_WS ? String(RAW_WS).trim() : RPC_HTTP.replace(/^https/i, "wss");
+
+
+// Only use an explicit WS endpoint if it begins with ws:// or wss://.
+// Otherwise, let @solana/web3.js derive it from the HTTP RPC URL.
+const RPC_WS = (() => {
+  const w = String(RAW_WS).trim();
+  if (!w) return undefined;
+  if (!/^wss?:\/\//i.test(w)) {
+    console.warn("[env] Ignoring invalid VITE_SOLANA_WS_URL:", w);
+    return undefined;
+  }
+  return w;
+})();
+
 
 export const connection = new Connection(RPC_HTTP, {
   commitment: "confirmed",
@@ -145,15 +159,14 @@ export async function executeClaimFeePayment(
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
-
   const claimFeeSOL = ENV_VARS.VITE_CLAIM_FEE_SOL ? Number(ENV_VARS.VITE_CLAIM_FEE_SOL) : 0.0005;
-
 
   const tx = new Transaction().add(
     SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET, lamports: toLamports(claimFeeSOL) })
   );
   return signAndSendTransaction(tx, wallet);
 }
+
 
 export function formatPublicKey(k: string | PublicKey) {
   const s = typeof k === "string" ? k : k.toBase58();
