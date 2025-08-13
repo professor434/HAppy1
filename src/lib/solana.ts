@@ -5,9 +5,11 @@ import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, Tr
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
 // ===== RPC (HTTPS + WSS) =====
+
 const ENV_VARS = (import.meta as any)?.env || {};
 const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_URL || "";
 const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
+
 
 function assertHttps(u: string) {
   if (!/^https:\/\//i.test(u)) throw new Error("VITE_SOLANA_RPC_URL must be a valid https:// endpoint");
@@ -26,6 +28,7 @@ export const connection = new Connection(RPC_HTTP, {
 });
 
 // ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
+
 export const SPL_MINT_ADDRESS: string =
   ENV_VARS.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 
@@ -37,6 +40,7 @@ const FEE_WALLET_STR =
 
 export const BUY_FEE_PERCENTAGE =
   ENV_VARS.VITE_BUY_FEE_PERCENTAGE ? Number(ENV_VARS.VITE_BUY_FEE_PERCENTAGE) : 2;
+
 
 export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
 export const FEE_WALLET = new PublicKey(FEE_WALLET_STR);
@@ -141,7 +145,9 @@ export async function executeClaimFeePayment(
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
+
   const claimFeeSOL = ENV_VARS.VITE_CLAIM_FEE_SOL ? Number(ENV_VARS.VITE_CLAIM_FEE_SOL) : 0.0005;
+
 
   const tx = new Transaction().add(
     SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET, lamports: toLamports(claimFeeSOL) })
