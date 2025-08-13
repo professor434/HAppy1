@@ -19,7 +19,7 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
 
   const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
   return (
-    <ConnectionProvider endpoint={endpoint} config={{ commitment: "finalized", wsEndpoint: ws }}>
+    <ConnectionProvider endpoint={endpoint} config={{ commitment: "procced", wsEndpoint: ws }}>
       <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
