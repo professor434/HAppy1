@@ -1,23 +1,58 @@
-// src/lib/tx.ts
-import type { Commitment, RpcResponseAndContext, SignatureResult } from "@solana/web3.js";
-import { Connection, VersionedTransaction } from "@solana/web3.js";
+// src/lib/env.ts
+import type { Commitment } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 
-export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Δίκτυο
+export const NETWORK =
+  (process.env.NEXT_PUBLIC_NETWORK ?? 'mainnet-beta') as
+    | 'mainnet-beta'
+    | 'devnet'
+    | 'testnet';
 
-export async function waitForVisibility(skipOnMobile = false) {
-  if (skipOnMobile) return;
-  if (typeof document === "undefined") return;
-  if (document.visibilityState === "visible") return;
-  await new Promise<void>((resolve) => {
-    const h = () => {
-      if (document.visibilityState === "visible") {
-        document.removeEventListener("visibilitychange", h);
-        resolve();
-      }
-    };
-    document.addEventListener("visibilitychange", h);
-  });
-}
+// === RPCs (ΔΙΚΑ ΣΟΥ) ===
+// Primary: extranode (πληρωμένο)
+export const RPC_PRIMARY =
+  process.env.NEXT_PUBLIC_RPC_PRIMARY ??
+  'https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2';
+
+// Fallback: QuickNode
+export const RPC_FALLBACK =
+  process.env.NEXT_PUBLIC_RPC_FALLBACK ??
+  'https://broken-purple-breeze.solana-mainnet.quiknode.pro/b087363c02a61ba4c37f9acd5c3c4dcc7b20420f';
+
+// Confirmation level (mobile-friendly)
+export const COMMITMENT: Commitment =
+  (process.env.NEXT_PUBLIC_COMMITMENT as Commitment) ?? 'confirmed';
+
+// Μεγαλύτερο timeout για mobile (ms)
+export const TX_TIMEOUT_MS = Number(
+  process.env.NEXT_PUBLIC_TX_TIMEOUT_MS ?? 90000 // 90s
+);
+
+// Optional priority fee (micro-lamports per CU). 0 = off
+export const PRIORITY_FEE_MICRO_LAMPORTS = Number(
+  process.env.NEXT_PUBLIC_PRIORITY_FEE ?? 5000
+);
+
+// Upper bound compute units (ασφαλές default)
+export const COMPUTE_UNIT_LIMIT = Number(
+  process.env.NEXT_PUBLIC_COMPUTE_UNIT_LIMIT ?? 800000
+);
+
+// ===== Σταθερές token/wallets (όπως τα έχεις) =====
+export const SPL_MINT_ADDRESS = new PublicKey(
+  'GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs'
+);
+export const TREASURY_WALLET = new PublicKey(
+  '6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD'
+);
+export const FEE_WALLET = new PublicKey(
+  'J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn'
+);
+// USDC (mainnet – πλήρες)
+export const USDC_MINT_ADDRESS = new PublicKey(
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+);
 
 export async function confirmWithRetry(
   conn: Connection,
