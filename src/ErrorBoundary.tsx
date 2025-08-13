@@ -1,18 +1,18 @@
-import { Component, ReactNode } from "react";
+// παράδειγμα σε hook ή component που φορτώνει τα data (π.χ. use-presale / Index)
+const [err, setErr] = useState<string | null>(null);
+const [status, setStatus] = useState<any>(null);
 
-export class ErrorBoundary extends Component<{ children: ReactNode }, { err?: any }> {
-  state = { err: undefined as any };
-  static getDerivedStateFromError(err: any) { return { err }; } // δείξε fallback UI
-  componentDidCatch(err: any, info: any) { console.error("[UI ERROR]", err, info); } // log
-  render() {
-    if (this.state.err) {
-      return (
-        <div style={{padding:20, color:"#f55", fontFamily:"ui-sans-serif"}}>
-          <h2>Κάτι πήγε στραβά στο render.</h2>
-          <pre style={{whiteSpace:"pre-wrap"}}>{String(this.state.err?.message ?? this.state.err)}</pre>
-        </div>
-      );
+useEffect(() => {
+  (async () => {
+    try {
+      const s = await j("/status");
+      setStatus(s);
+    } catch (e) {
+      console.error("[PRESALE STATUS FAIL]", e);
+      setErr((e as Error).message);
     }
-    return this.props.children;
-  }
-}
+  })();
+}, []);
+
+if (err) return <div style={{padding:16,color:"#c00"}}>API error: {err}</div>;
+if (!status) return <div>Loading presale…</div>;
