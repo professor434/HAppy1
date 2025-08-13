@@ -16,7 +16,7 @@ const RPC_HTTP = (() => {
   assertHttps(u);
   return u;
 })();
-const RPC_WS   = RAW_WS ? String(RAW_WS).trim() : RPC_HTTP.replace(/^https/i, "wss://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2");
+const RPC_WS   = RAW_WS ? String(RAW_WS).trim() : RPC_HTTP.replace(/^https/i, "wss");
 
 export const connection = new Connection(RPC_HTTP, {
   commitment: "confirmed",
