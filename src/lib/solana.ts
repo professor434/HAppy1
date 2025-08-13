@@ -5,8 +5,11 @@ import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, Tr
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
 // ===== RPC (HTTPS + WSS) =====
-const RAW_HTTP = (import.meta as any)?.env?.VITE_SOLANA_RPC_URL || "";
-const RAW_WS   = (import.meta as any)?.env?.VITE_SOLANA_WS_URL || "";
+
+const ENV_VARS = (import.meta as any)?.env || {};
+const RAW_HTTP = ENV_VARS.VITE_SOLANA_RPC_URL || ENV_VARS.VITE_SOLANA_QUICKNODE_URL || "";
+const RAW_WS   = ENV_VARS.VITE_SOLANA_WS_URL || "";
+
 
 function assertHttps(u: string) {
   if (!/^https:\/\//i.test(u)) throw new Error("https://solana-mainnet.rpc.extrnode.com/abba3bc7-b46a-4acb-8b15-834781a11ae2");
@@ -25,18 +28,19 @@ export const connection = new Connection(RPC_HTTP, {
 });
 
 // ===== Constants (βάλε από env εκεί που έχεις ήδη) =====
-const ENV = (import.meta as any)?.env ?? {};
+
 export const SPL_MINT_ADDRESS: string =
-  ENV.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
+  ENV_VARS.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
 
 const TREASURY_WALLET_STR =
-  ENV.VITE_TREASURY_WALLET || "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
+  ENV_VARS.VITE_TREASURY_WALLET || "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
 
 const FEE_WALLET_STR =
-  ENV.VITE_FEE_WALLET || "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
+  ENV_VARS.VITE_FEE_WALLET || "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
 
 export const BUY_FEE_PERCENTAGE =
-  ENV.VITE_BUY_FEE_PERCENTAGE ? Number(ENV.VITE_BUY_FEE_PERCENTAGE) : 2;
+  ENV_VARS.VITE_BUY_FEE_PERCENTAGE ? Number(ENV_VARS.VITE_BUY_FEE_PERCENTAGE) : 2;
+
 
 export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
 export const FEE_WALLET = new PublicKey(FEE_WALLET_STR);
@@ -141,7 +145,9 @@ export async function executeClaimFeePayment(
   wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & { sendTransaction?: any }
 ): Promise<TransactionSignature> {
   if (!wallet.publicKey) throw new Error("Wallet not properly connected");
-  const claimFeeSOL = ENV.VITE_CLAIM_FEE_SOL ? Number(ENV.VITE_CLAIM_FEE_SOL) : 0.0005;
+
+  const claimFeeSOL = ENV_VARS.VITE_CLAIM_FEE_SOL ? Number(ENV_VARS.VITE_CLAIM_FEE_SOL) : 0.0005;
+
 
   const tx = new Transaction().add(
     SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: FEE_WALLET, lamports: toLamports(claimFeeSOL) })
