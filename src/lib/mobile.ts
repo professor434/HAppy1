@@ -50,7 +50,10 @@ export function setPreferredWallet(w: WalletChoice) {
 export function openInWalletBrowser(url: string, wallet?: WalletChoice) {
   const choice = wallet ?? getPreferredWallet();
   const href = deepLinks[choice](url);
-  if (typeof window !== "undefined") window.location.href = href;
+  if (typeof window !== "undefined") {
+    const win = window.open(href, "_blank", "noopener,noreferrer");
+    win?.focus();
+  }
 }
 
 export function walletStoreUrl(wallet: WalletChoice) {
