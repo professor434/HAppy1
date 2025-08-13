@@ -2,286 +2,115 @@
 import {
   Connection,
   PublicKey,
-  Transaction,
-  SystemProgram,
-  TransactionSignature,
-  LAMPORTS_PER_SOL,
-} from "@solana/web3.js";
-import type { WalletAdapterProps } from "@solana/wallet-adapter-base";
+  VersionedTransaction,
+  TransactionInstruction,
+  TransactionMessage,
+  ComputeBudgetProgram,
+  SendOptions,
+  Commitment,
+} from '@solana/web3.js';
+
 import {
-  createTransferInstruction,
-  getAssociatedTokenAddress,
-  getAccount,
-  createAssociatedTokenAccountInstruction,
-} from "@solana/spl-token";
-import { RPC_HTTP, RPC_WS, assertEnv } from "@/lib/env";
+  RPC_PRIMARY,
+  RPC_FALLBACK,
+  COMMITMENT,
+  TX_TIMEOUT_MS,
+  PRIORITY_FEE_MICRO_LAMPORTS,
+  COMPUTE_UNIT_LIMIT,
+  SPL_MINT_ADDRESS,
+  TREASURY_WALLET,
+  FEE_WALLET,
+  USDC_MINT_ADDRESS,
+} from './env';
 
-// ---------- Connection ----------
-export let connection: Connection;
+// ----- Connection helpers -----
+export const makeConnection = (endpoint?: string) =>
+  new Connection(endpoint ?? RPC_PRIMARY, { commitment: COMMITMENT });
 
-export async function makeConnection() {
-  await assertEnv();
-  connection = new Connection(RPC_HTTP, {
-    commitment: "finalized",
-    wsEndpoint: RPC_WS,
-    confirmTransactionInitialTimeout: 90_000,
+const withFallback = async <T>(a: () => Promise<T>, b: () => Promise<T>) => {
+  try { return await a(); } catch (e) { console.warn('[RPC primary failed]', e); return await b(); }
+};
 
-  });
-  return connection;
-}
-
-// Re-use one connection across the app
-void makeConnection();
-
-// ---------- ENV CONSTANTS ----------
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const ENV: any = (import.meta as any)?.env ?? {};
-
-export const SPL_MINT_ADDRESS: string =
-  ENV.VITE_SPL_MINT_ADDRESS || "GgzjNE5YJ8FQ4r1Ts4vfUUq87ppv5qEZQ9uumVM7txGs";
-
-const TREASURY_WALLET_STR: string =
-  ENV.VITE_TREASURY_WALLET || "6fcXfgceVof1Lv6WzNZWSD4jQc9up5ctE3817RE2a9gD";
-
-const FEE_WALLET_STR: string =
-  ENV.VITE_FEE_WALLET || "J2Vz7te8H8gfUSV6epJtLAJsyAjmRpee5cjjDVuR8tWn";
-
-export const BUY_FEE_PERCENTAGE: number =
-  ENV.VITE_BUY_FEE_PERCENTAGE ? Number(ENV.VITE_BUY_FEE_PERCENTAGE) : 2;
-
-export const TREASURY_WALLET = new PublicKey(TREASURY_WALLET_STR);
-export const FEE_WALLET = new PublicKey(FEE_WALLET_STR);
-export const USDC_MINT_ADDRESS = new PublicKey(
-  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-);
-
-// ---------- Helpers ----------
-const toLamports = (sol: number) => Math.floor(sol * LAMPORTS_PER_SOL);
-const toUSDCUnits = (u: number) => Math.floor(u * 1_000_000);
-
-// One path that works for desktop & mobile (uses sendTransaction when υπάρχει)
-async function signAndSendTransaction(
-  transaction: Transaction,
-  wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sendTransaction?: any;
-  }
-): Promise<TransactionSignature> {
-  if (!wallet?.publicKey) throw new Error("Wallet not connected");
-
-  // Mobile wallets usually expose sendTransaction()
-  if (typeof (wallet as any).sendTransaction === "function") {
-    const send = (wallet as any).sendTransaction.bind(wallet);
-    const trySend = async () => {
-      const sig: TransactionSignature = await send(transaction, connection, {
-        skipPreflight: false,
-        preflightCommitment: "finalized",
-        maxRetries: 3,
-      });
-      let res;
-      try {
-        res = await connection.confirmTransaction(sig, "finalized");
-      } catch (err) {
-        console.error("confirmTransaction error:", err);
-        throw err;
-      }
-      if (res.value?.err) {
-        const msg =
-          typeof res.value.err === "string"
-            ? res.value.err
-            : JSON.stringify(res.value.err);
-        console.error("Transaction failed:", msg);
-        throw new Error(msg);
-      }
-      return sig;
-    };
-    try {
-      return await trySend();
-    } catch (e: any) {
-      if (String(e?.message || "").includes("blockhash not found")) {
-        const latest = await connection.getLatestBlockhash("finalized");
-        transaction.recentBlockhash = latest.blockhash;
-        return await trySend();
-      }
-      throw e;
-    }
-  }
-
-  // Fallback: manual sign + robust confirm
-  transaction.feePayer = wallet.publicKey!;
-  let latest = await connection.getLatestBlockhash("finalized");
-  transaction.recentBlockhash = latest.blockhash;
-
-  let signed = await wallet.signTransaction!(transaction);
-
-  const tryOnce = async () => {
-    const signature = await connection.sendRawTransaction(signed.serialize(), {
-      skipPreflight: false,
-      maxRetries: 3,
-    });
-    let confirmation;
-    try {
-      confirmation = await connection.confirmTransaction(
-        {
-          signature,
-          blockhash: latest.blockhash,
-          lastValidBlockHeight: latest.lastValidBlockHeight,
-        },
-        "finalized"
-      );
-    } catch (err) {
-      console.error("confirmTransaction error:", err);
-      throw err;
-    }
-    if (confirmation?.value?.err) {
-      const msg =
-        typeof confirmation.value.err === "string"
-          ? confirmation.value.err
-          : JSON.stringify(confirmation.value.err);
-      console.error("Transaction failed:", msg);
-      throw new Error(msg);
-    }
-    return signature as TransactionSignature;
-  };
-
-  try {
-    return await tryOnce();
-  } catch (e: any) {
-    if (String(e?.message || "").includes("blockhash not found")) {
-      latest = await connection.getLatestBlockhash("finalized");
-      transaction.recentBlockhash = latest.blockhash;
-      signed = await wallet.signTransaction!(transaction);
-      return await tryOnce();
-    }
-    // slow mobile networks – poll up to 90s
-    const signature = await connection.sendRawTransaction(signed.serialize());
-    const deadline = Date.now() + 90_000;
-    while (Date.now() < deadline) {
-      const st = await connection.getSignatureStatuses([signature]);
-      const s = st.value?.[0];
-      if (s?.confirmationStatus === "finalized") break;
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    return signature as TransactionSignature;
-  }
-}
-
-// ---------- SOL ----------
-export async function executeSOLPayment(
-  amountSOL: number,
-  wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sendTransaction?: any;
-  }
-): Promise<TransactionSignature> {
-  if (!wallet.publicKey) throw new Error("Wallet not properly connected");
-
-  const feePct = BUY_FEE_PERCENTAGE / 100;
-  const mainAmount = amountSOL * (1 - feePct);
-  const feeAmount = amountSOL * feePct;
-
-  const needed = toLamports(mainAmount + feeAmount) + 5_000;
-  const balance = await connection.getBalance(wallet.publicKey);
-  if (balance < needed) throw new Error("Insufficient SOL balance.");
-
-  const tx = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: wallet.publicKey,
-      toPubkey: TREASURY_WALLET,
-      lamports: toLamports(mainAmount),
-    }),
-    SystemProgram.transfer({
-      fromPubkey: wallet.publicKey,
-      toPubkey: FEE_WALLET,
-      lamports: toLamports(feeAmount),
-    })
-  );
-  return signAndSendTransaction(tx, wallet);
-}
-
-// ---------- USDC ----------
-export async function executeUSDCPayment(
-  amountUSDC: number,
-  wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sendTransaction?: any;
-  }
-): Promise<TransactionSignature> {
-  if (!wallet.publicKey) throw new Error("Wallet not properly connected");
-
-  const feePct = BUY_FEE_PERCENTAGE / 100;
-  const mainU64 = toUSDCUnits(amountUSDC * (1 - feePct));
-  const feeU64 = toUSDCUnits(amountUSDC * feePct);
-
-  const owner = wallet.publicKey;
-  const from = await getAssociatedTokenAddress(USDC_MINT_ADDRESS, owner);
-  const toMain = await getAssociatedTokenAddress(
-    USDC_MINT_ADDRESS,
-    TREASURY_WALLET
-  );
-  const toFee = await getAssociatedTokenAddress(
-    USDC_MINT_ADDRESS,
-    FEE_WALLET
+// ----- Build v0 tx (compute + priority fee) -----
+export async function buildV0Tx(
+  payer: PublicKey,
+  ixs: TransactionInstruction[],
+  connection?: Connection
+): Promise<VersionedTransaction> {
+  const conn = connection ?? makeConnection();
+  const { blockhash } = await withFallback(
+    () => conn.getLatestBlockhash({ commitment: COMMITMENT as Commitment }),
+    () => makeConnection(RPC_FALLBACK).getLatestBlockhash({ commitment: COMMITMENT as Commitment }),
   );
 
-  const tx = new Transaction();
-  try {
-    await getAccount(connection, toMain);
-  } catch {
-    tx.add(
-      createAssociatedTokenAccountInstruction(
-        owner,
-        toMain,
-        TREASURY_WALLET,
-        USDC_MINT_ADDRESS
-      )
+  const budgetIxs: TransactionInstruction[] = [];
+  if (COMPUTE_UNIT_LIMIT > 0) budgetIxs.push(ComputeBudgetProgram.setComputeUnitLimit({ units: COMPUTE_UNIT_LIMIT }));
+  if (PRIORITY_FEE_MICRO_LAMPORTS > 0)
+    budgetIxs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_FEE_MICRO_LAMPORTS }));
+
+  const msg = new TransactionMessage({
+    payerKey: payer,
+    recentBlockhash: blockhash,
+    instructions: [...budgetIxs, ...ixs],
+  }).compileToV0Message();
+
+  return new VersionedTransaction(msg);
+}
+
+// ----- Robust send + confirm (polling με timeout & retries) -----
+export async function sendAndConfirmRobust(
+  connection: Connection,
+  tx: VersionedTransaction,
+  opts?: SendOptions & { timeoutMs?: number }
+): Promise<string> {
+  const timeoutMs = opts?.timeoutMs ?? TX_TIMEOUT_MS;
+  const sendOpts: SendOptions = { skipPreflight: false, maxRetries: 3, ...opts };
+
+  // 1) send με primary, αλλιώς fallback
+  const sig = await withFallback(
+    () => connection.sendRawTransaction(tx.serialize(), sendOpts),
+    () => makeConnection(RPC_FALLBACK).sendRawTransaction(tx.serialize(), sendOpts),
+  );
+
+  // 2) poll μέχρι confirm/finalize
+  const start = Date.now(); const sleep = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+  while (Date.now() - start < timeoutMs) {
+    const res = await withFallback(
+      () => connection.getSignatureStatuses([sig], { searchTransactionHistory: true }),
+      () => makeConnection(RPC_FALLBACK).getSignatureStatuses([sig], { searchTransactionHistory: true }),
     );
+    const st = res.value[0];
+    if (st?.err) throw new Error(`Transaction failed: ${JSON.stringify(st.err)} (sig: ${sig})`);
+    if (st?.confirmationStatus === 'confirmed' || st?.confirmationStatus === 'finalized') return sig;
+    await sleep(1200);
   }
-  try {
-    await getAccount(connection, toFee);
-  } catch {
-    tx.add(
-      createAssociatedTokenAccountInstruction(
-        owner,
-        toFee,
-        FEE_WALLET,
-        USDC_MINT_ADDRESS
-      )
-    );
-  }
-
-  if (mainU64 > 0)
-    tx.add(createTransferInstruction(from, toMain, owner, mainU64));
-  if (feeU64 > 0) tx.add(createTransferInstruction(from, toFee, owner, feeU64));
-
-  return signAndSendTransaction(tx, wallet);
+  throw new Error(`Confirmation timeout after ${Math.round(timeoutMs/1000)}s. Signature: ${sig}.`);
 }
 
-// ---------- Claim fee ----------
-export async function executeClaimFeePayment(
-  wallet: Pick<WalletAdapterProps, "publicKey" | "signTransaction"> & {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sendTransaction?: any;
+// ----- High-level helper (mobile-friendly) -----
+export async function signSendAndConfirm(
+  wallet: {
+    signTransaction?: (tx: VersionedTransaction)=>Promise<VersionedTransaction>;
+    signAndSendTransaction?: (tx: VersionedTransaction, opts?: any)=>Promise<{ signature: string }>;
+    supportedTransactionVersions?: Set<number>|null;
+  },
+  payer: PublicKey,
+  ixs: TransactionInstruction[],
+): Promise<string> {
+  const conn = makeConnection();
+  const tx = await buildV0Tx(payer, ixs, conn);
+
+  // Mobile Phantom/solflare: πιο γρήγορο
+  if (wallet.signAndSendTransaction) {
+    const { signature } = await wallet.signAndSendTransaction(tx, { maxRetries: 3 });
+    await sendAndConfirmRobust(conn, tx, { timeoutMs: TX_TIMEOUT_MS });
+    return signature;
   }
-): Promise<TransactionSignature> {
-  if (!wallet.publicKey) throw new Error("Wallet not properly connected");
 
-  const claimFeeSOL = ENV.VITE_CLAIM_FEE_SOL
-    ? Number(ENV.VITE_CLAIM_FEE_SOL)
-    : 0.0005;
-
-  const tx = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: wallet.publicKey,
-      toPubkey: FEE_WALLET,
-      lamports: toLamports(claimFeeSOL),
-    })
-  );
-  return signAndSendTransaction(tx, wallet);
+  if (!wallet.signTransaction) throw new Error('Wallet adapter does not support signing transactions.');
+  const signed = await wallet.signTransaction(tx);
+  return await sendAndConfirmRobust(conn, signed, { timeoutMs: TX_TIMEOUT_MS });
 }
 
-// small helper
-export function formatPublicKey(k: string | PublicKey) {
-  const s = typeof k === "string" ? k : k.toBase58();
-  return `${s.slice(0, 6)}...${s.slice(-6)}`;
-}
+// Επανεξάγουμε ό,τι ήδη χρησιμοποιείται αλλού
+export { SPL_MINT_ADDRESS, TREASURY_WALLET, FEE_WALLET, USDC_MINT_ADDRESS };
