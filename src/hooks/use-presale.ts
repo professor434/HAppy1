@@ -50,14 +50,15 @@ export function usePresale() {
     if (isMobile && hasInjected() && !connected) connect().catch(() => {});
   }, [connected, connect, isMobile]);
 
-  useEffect(() => {
-    if (connected) {
-      const target = PROD_URL;
-      if (typeof window !== "undefined" && window.location.href !== target) {
-        window.location.href = target;
-      }
-    }
-  }, [connected]);
+  // REMOVED the automatic redirect that was causing the wallet connection issue
+  // useEffect(() => {
+  //   if (connected) {
+  //     const target = PROD_URL;
+  //     if (typeof window !== "undefined" && window.location.href !== target) {
+  //       window.location.href = target;
+  //     }
+  //   }
+  // }, [connected]);
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -249,5 +250,6 @@ export function usePresale() {
     goalTokens,
     raisedPercentage,
     isMobile,
+    error: null,
   };
 }
