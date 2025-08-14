@@ -50,7 +50,7 @@ export function usePresale() {
     if (isMobile && hasInjected() && !connected) connect().catch(() => {});
   }, [connected, connect, isMobile]);
 
-  // REMOVED the automatic redirect that was causing the wallet connection issue
+  // REMOVED: This redirect was causing wallet connection issues
   // useEffect(() => {
   //   if (connected) {
   //     const target = PROD_URL;
@@ -166,7 +166,6 @@ export function usePresale() {
       (window as unknown as { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
       // iPhone fix: Add a small delay before recording purchase to ensure transaction propagation
-      const isIPhone = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isIPhone) {
         await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay for iPhone
       }
