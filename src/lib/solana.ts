@@ -226,7 +226,8 @@ export async function executeClaimFeePayment(
 }
 
 
-export function formatPublicKey(k: string | PublicKey) {
+export function formatPublicKey(k: string | PublicKey): string {
   const s = typeof k === "string" ? k : k.toBase58();
-  return `<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mi>s</mi><mi mathvariant="normal">.</mi><mi>s</mi><mi>l</mi><mi>i</mi><mi>c</mi><mi>e</mi><mo stretchy="false">(</mo><mn>0</mn><mo separator="true">,</mo><mn>6</mn><mo stretchy="false">)</mo></mrow><mi mathvariant="normal">.</mi><mi mathvariant="normal">.</mi><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">{s.slice(0, 6)}...</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord"><span class="mord mathnormal">s</span><span class="mord">.</span><span class="mord mathnormal">s</span><span class="mord mathnormal" style="margin-right:0.01968em;">l</span><span class="mord mathnormal">i</span><span class="mord mathnormal">ce</span><span class="mopen">(</span><span class="mord">0</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord">6</span><span class="mclose">)</span></span><span class="mord">...</span></span></span></span>{s.slice(-6)}`;
+  if (s.length <= 12) return s;
+  return `${s.slice(0, 6)}…${s.slice(-6)}`;
 }
