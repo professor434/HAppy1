@@ -27,15 +27,17 @@ export default function PurchaseForm({
     <>
       <div className="grid gap-2">
         <Label htmlFor="amount">Amount of PENIS tokens</Label>
-        <Input
-          id="amount"
-          placeholder="Enter amount"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          type="number"
-          min="1"
-          className="bg-gray-800/50"
-        />
+       <Input
+  type="number"
+  inputMode="numeric"
+  value={amount}
+  onChange={(e) => setAmount(e.target.value)}
+  min={minBuy}
+  max={maxBuy}
+  step="1"
+  className="bg-gray-800/50 text-pink-500 font-bold placeholder-pink-400"
+/>
+
       </div>
       <div className="grid gap-2">
         <Label htmlFor="token">Payment Token</Label>
