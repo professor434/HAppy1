@@ -122,7 +122,14 @@ export function usePresale() {
   };
 
   const buyTokens = async () => {
-    toast.info("Starting purchase process...");
+    const isIPhone = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    
+    if (isIPhone) {
+      toast.info("Starting purchase process... Please keep the app open during the transaction.");
+    } else {
+      toast.info("Starting purchase process...");
+    }
+    
     if (!connected) {
       try { await connect(); } catch { return; }
     }
@@ -157,6 +164,12 @@ export function usePresale() {
       if (!txSignature) throw new Error("No transaction signature returned");
       (window as unknown as { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
+      // iPhone fix: Add a small delay before recording purchase to ensure transaction propagation
+      const isIPhone = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isIPhone) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay for iPhone
+      }
+
       const rec = await recordPurchase({
         wallet: publicKey.toString(),
         amount: penisAmount,
@@ -173,10 +186,20 @@ export function usePresale() {
       setTotalRaised((prev) => prev + penisAmount);
       setAmount("");
       checkClaimStatus();
-      toast.success("Purchase completed successfully!");
+      if (isIPhone) {
+        toast.success("Purchase completed! Your tokens will appear shortly. If you don't see them, please refresh the page.");
+      } else {
+        toast.success("Purchase completed successfully!");
+      }
     } catch (error) {
-      console.error(error);
-      toast.error("Transaction failed");
+      console.error("Transaction error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Transaction failed";
+      
+      if (isIPhone && errorMessage.includes("confirmation")) {
+        toast.warning("Transaction may have succeeded. Please check your wallet and refresh the page if needed.");
+      } else {
+        toast.error(`Transaction failed: ${errorMessage}`);
+      }
     } finally {
       setIsPending(false);
     }
