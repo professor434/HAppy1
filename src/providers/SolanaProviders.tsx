@@ -9,7 +9,7 @@ import { VITE_SOLANA_RPC_URL, VITE_SOLANA_WS_URL, COMMITMENT } from "@/lib/env";
 export default function SolanaProviders({ children }: PropsWithChildren) {
   const wallets = useMemo(() => [
     new PhantomWalletAdapter(),
-    new SolflareWalletAdapter({ network: 'mainnet-beta' }) // Specify network for better connection
+    new SolflareWalletAdapter({ network: 'mainnet-beta' })
   ], []);
   
   return (
@@ -18,15 +18,14 @@ export default function SolanaProviders({ children }: PropsWithChildren) {
       config={{ 
         commitment: COMMITMENT, 
         wsEndpoint: VITE_SOLANA_WS_URL || undefined,
-        confirmTransactionInitialTimeout: 90000 // Longer timeout for mobile
+        confirmTransactionInitialTimeout: 90000
       }}
     >
       <WalletProvider 
         wallets={wallets} 
-        autoConnect={true} // Enable auto-connect to keep users connected
+        autoConnect={true}
         onError={(error) => {
           console.warn('Wallet connection error (non-critical):', error);
-          // Don't throw errors that would break the app
         }}
       >
         <WalletModalProvider>{children}</WalletModalProvider>
