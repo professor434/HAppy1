@@ -2,17 +2,17 @@
 import React, { Component, ReactNode } from "react";
 
 type Props = { children: ReactNode };
-type State = { error?: any };
+type State = { error?: unknown };
 
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: undefined };
 
-  static getDerivedStateFromError(error: any): State {
+  static getDerivedStateFromError(error: unknown): State {
     // Δείχνουμε fallback UI αντί για «λευκή»
     return { error };
   }
 
-  componentDidCatch(error: any, info: any) {
+  componentDidCatch(error: unknown, info: unknown) {
     // Log για prod/analytics
     console.error("[UI ERROR]", error, info);
   }

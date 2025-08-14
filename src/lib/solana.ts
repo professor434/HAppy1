@@ -86,12 +86,8 @@ async function signAndSendTransaction(
       skipPreflight: false,
       maxRetries: 3,
     });
-    // Επιβεβαίωση με WS + fallback
-    const latest = await connection.getLatestBlockhash("finalized");
-    const conf = await connection.confirmTransaction(
-      { signature: sig, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
-      "confirmed"
-    );
+    // Confirm using the wallet's submitted blockhash; avoid fetching a new one
+    const conf = await connection.confirmTransaction(sig, "confirmed");
     if (conf.value?.err) throw new Error("Transaction failed");
     return sig;
   }
