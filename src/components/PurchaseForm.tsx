@@ -1,7 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { PaymentToken } from "@/lib/api";
 
 interface Props {
@@ -27,30 +33,49 @@ export default function PurchaseForm({
     <>
       <div className="grid gap-2">
         <Label htmlFor="amount">Amount of PENIS tokens</Label>
-       <Input
-  type="number"
-  inputMode="numeric"
-  value={amount}
-  onChange={(e) => setAmount(e.target.value)}
-  min={minBuy}
-  max={maxBuy}
-  step="1"
-  className="bg-gray-800/50 text-pink-500 font-bold placeholder-pink-400"
-/>
-
+        <Input
+          id="amount"
+          type="number"
+          inputMode="numeric"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          min={minBuy}
+          max={maxBuy}
+          step="1"
+          className="bg-gray-800/50 text-pink-500 font-bold placeholder-pink-400"
+        />
       </div>
+
       <div className="grid gap-2">
         <Label htmlFor="token">Payment Token</Label>
-        <Select value={paymentToken} onValueChange={(v: PaymentToken) => setPaymentToken(v)}>
-          <SelectTrigger className="bg-gray-800/50">
+        <Select
+          value={paymentToken}
+          onValueChange={(v) => setPaymentToken(v as PaymentToken)}
+        >
+          <SelectTrigger
+            id="token"
+            className="bg-gray-800/50 text-pink-500 font-bold border-pink-500/30 focus:ring-0 focus:outline-none focus:border-pink-500"
+          >
             <SelectValue placeholder="Select token" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="USDC">USDC</SelectItem>
-            <SelectItem value="SOL">SOL</SelectItem>
+
+          <SelectContent className="bg-gray-900 text-pink-500 font-bold border border-pink-500/30">
+            <SelectItem
+              value="USDC"
+              className="text-pink-500 font-bold data-[highlighted]:bg-pink-500/10 data-[state=checked]:text-pink-600"
+            >
+              USDC
+            </SelectItem>
+            <SelectItem
+              value="SOL"
+              className="text-pink-500 font-bold data-[highlighted]:bg-pink-500/10 data-[state=checked]:text-pink-600"
+            >
+              SOL
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
+
       <Button
         onClick={buyTokens}
         disabled={!connected || isPending || !amount}
@@ -58,8 +83,11 @@ export default function PurchaseForm({
       >
         {isPending ? "Processing..." : "Buy Now"}
       </Button>
+
       {!connected && (
-        <p className="text-center text-sm text-gray-400">Connect your wallet to buy tokens</p>
+        <p className="text-center text-sm text-gray-400">
+          Connect your wallet to buy tokens
+        </p>
       )}
     </>
   );
