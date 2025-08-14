@@ -18,6 +18,9 @@ interface Props {
   buyTokens: () => void;
   isPending: boolean;
   connected: boolean;
+  /** optional limits so δεν “κρασάρει” αν λείπουν */
+  minBuy?: number;
+  maxBuy?: number;
 }
 
 export default function PurchaseForm({
@@ -28,6 +31,8 @@ export default function PurchaseForm({
   buyTokens,
   isPending,
   connected,
+  minBuy = 1,
+  maxBuy = 1_000_000,
 }: Props) {
   return (
     <>
@@ -43,6 +48,7 @@ export default function PurchaseForm({
           max={maxBuy}
           step="1"
           className="bg-gray-800/50 text-pink-500 font-bold placeholder-pink-400"
+          placeholder={`${minBuy} - ${maxBuy}`}
         />
       </div>
 
@@ -58,7 +64,6 @@ export default function PurchaseForm({
           >
             <SelectValue placeholder="Select token" />
           </SelectTrigger>
-
           <SelectContent className="bg-gray-900 text-pink-500 font-bold border border-pink-500/30">
             <SelectItem
               value="USDC"
