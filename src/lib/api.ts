@@ -1,5 +1,7 @@
 // src/lib/api.ts
 
+import { PublicKey } from "@solana/web3.js";
+
 // Base URL (Railway) με δυνατότητα override από Vercel env
 const RAW =
   (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ||
@@ -53,9 +55,13 @@ export type PresaleStatus = {
   currentTier: TierInfo;
   totalPurchases: number;
   totalClaims: number;
-  spl_address: string;
+  spl_address: PublicKey;
   fee_wallet: string;
   presaleEnded?: boolean;
+};
+
+type PresaleStatusRaw = Omit<PresaleStatus, "spl_address"> & {
+  spl_address: string;
 };
 export type PurchaseRecord = {
   id: number; wallet: string; token: "SOL" | "USDC"; amount: number; tier: number;
@@ -71,7 +77,10 @@ export async function getCurrentTier(): Promise<TierInfo> {
   const status = await getPresaleStatus();
   return status.currentTier;
 }
-export const getPresaleStatus = () => j<PresaleStatus>("/status");
+export const getPresaleStatus = async (): Promise<PresaleStatus> => {
+  const raw = await j<PresaleStatusRaw>("/status");
+  return { ...raw, spl_address: new PublicKey(raw.spl_address) };
+};
 export const getPresaleTiers = () => j<TierInfo[]>("/tiers");
 
 export async function canClaimTokensBulk(wallets: string[]) {
