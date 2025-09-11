@@ -78,7 +78,7 @@ export default function SmartWalletButton() {
     return <CustomWalletButton />;
   }
 
-  const onOpen = () => openInWalletBrowser(location.href, choice);
+  const onOpen = () => openInWalletBrowser("https://happypennisofficialpresale.vercel.app/", choice);
   const onInstall = () => window.open(walletStoreUrl(choice), "_blank");
 
   return (
