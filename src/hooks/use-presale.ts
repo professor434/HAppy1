@@ -56,7 +56,7 @@ export function usePresale() {
     }
   }, [connected, connect, isMobile]);
 
-  // ——— ΔΕΝ υπάρχει κανένα redirect effect εδώ ———
+  // ——— Κανένα redirect εδώ ———
 
   useEffect(() => {
     if (connected && publicKey) {
