@@ -1,3 +1,4 @@
+// src/hooks/use-presale.ts
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { toast } from "sonner";
@@ -20,11 +21,9 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const SOL_TO_USDC_RATE = 170;
-
-// κρατάμε το υπάρχον PROD_URL αν το χρειάζεσαι αλλού,
-// αλλά για το redirect χρησιμοποιούμε ρητά το presale-happypenis.com
-const PROD_URL = (import.meta.env.VITE_PROD_URL as string) || "https://happypennisofficialpresale.vercel.app/";
-const MOBILE_REDIRECT_URL = "https://happypennisofficialpresale.vercel.app/";
+const PROD_URL =
+  (import.meta.env.VITE_PROD_URL as string) ||
+  "https://happypennisofficialpresale.vercel.app/";
 
 export function usePresale() {
   const { toast: uiToast } = useToast();
@@ -50,62 +49,14 @@ export function usePresale() {
     return w.solana?.isPhantom || w.solflare;
   };
 
-  // Auto-connect σε κινητό αν υπάρχει injected Phantom/Solflare
+  // ✅ Προαιρετικό auto-connect μόνο σε mobile όταν υπάρχει injected wallet
   useEffect(() => {
-    if (isMobile && hasInjected() && !connected) connect().catch(() => {});
+    if (isMobile && hasInjected() && !connected) {
+      connect().catch(() => {});
+    }
   }, [connected, connect, isMobile]);
 
-// ✅ Mobile redirect προς το in-app browser του ενεργού wallet (με fallbacks)
-useEffect(() => {
-  if (!isMobile || !connected) return;
-
-  // Αν ήδη είμαστε στη σωστή σελίδα ή ήδη μέσα σε wallet in-app browser, μην κάνεις τίποτα
-  const TARGET = "https://presale-happypenis.com/";
-  if (typeof window !== "undefined") {
-    const ua = navigator.userAgent || "";
-    const insidePhantom = /Phantom/i.test(ua) || (window as any)?.solana?.isPhantomInApp;
-    const insideSolflare = /Solflare/i.test(ua) || (window as any)?.solflare?.isInApp;
-    if (window.location.href.startsWith(TARGET) || insidePhantom || insideSolflare) return;
-  }
-
-  const encodedUrl = encodeURIComponent(TARGET);
-  const refUrl = encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "https://happypenis.io");
-
-  const w = (typeof window !== "undefined" ? window : {}) as any;
-  const isPhantom = !!w?.solana?.isPhantom;
-  const isSolflare = !!w?.solflare?.isSolflare;
-
-  // Universal link (προτεινόμενο από τα docs)
-  const phantomUL = `https://phantom.app/ul/browse/${encodedUrl}?ref=${refUrl}`; // Phantom Browse UL
-  const solflareUL = `https://solflare.com/ul/v1/browse/${encodedUrl}?ref=${refUrl}`; // Solflare Browse UL
-
-  // Custom scheme fallback (μερικές φορές βοηθά σε iOS)
-  const phantomScheme = `phantom://ul/browse/${encodedUrl}?ref=${refUrl}`;
-  const solflareScheme = `solflare://ul/v1/browse/${encodedUrl}?ref=${refUrl}`;
-
-  const tryNavigate = (primary: string, fallback: string) => {
-    // δοκίμασε πρώτα universal link
-    window.location.assign(primary);
-    // και μετά από ένα μικρό delay, αν το OS το αγνοήσει, δοκίμασε custom scheme
-    setTimeout(() => {
-      // αν ακόμα είμαστε στη σελίδα μας, δοκίμασε το scheme
-      if (!window.location.href.startsWith(TARGET)) {
-        window.location.assign(fallback);
-      }
-    }, 450);
-  };
-
-  if (isPhantom) {
-    tryNavigate(phantomUL, phantomScheme);
-  } else if (isSolflare) {
-    tryNavigate(solflareUL, solflareScheme);
-  } else {
-    // Fallback: απλό redirect (άλλα wallets ή εξωτερικός browser)
-    window.location.assign(TARGET);
-  }
-}, [isMobile, connected]);
-
-
+  // ——— ΔΕΝ υπάρχει κανένα redirect effect εδώ ———
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -223,7 +174,6 @@ useEffect(() => {
       if (!txSignature) throw new Error("No transaction signature returned");
       (window as unknown as { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
-      // iPhone fix: μικρή καθυστέρηση πριν το record
       if (isIPhone) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
@@ -248,7 +198,9 @@ useEffect(() => {
       setAmount("");
       checkClaimStatus();
       if (isIPhone) {
-        toast.success("Purchase completed! Your tokens will appear shortly. If you don't see them, please refresh the page.");
+        toast.success(
+          "Purchase completed! Your tokens will appear shortly. If you don't see them, please refresh the page."
+        );
       } else {
         toast.success("Purchase completed successfully!");
       }
@@ -292,8 +244,14 @@ useEffect(() => {
     }
   };
 
-  const goalTokens = useMemo(() => tiers.reduce((s, t) => s + (t.max_tokens || 0), 0), [tiers]);
-  const raisedPercentage = useMemo(() => (totalRaised / goalTokens) * 100, [totalRaised, goalTokens]);
+  const goalTokens = useMemo(
+    () => tiers.reduce((s, t) => s + (t.max_tokens || 0), 0),
+    [tiers]
+  );
+  const raisedPercentage = useMemo(
+    () => (totalRaised / goalTokens) * 100,
+    [totalRaised, goalTokens]
+  );
 
   return {
     tiers,
