@@ -24,7 +24,7 @@ const SOL_TO_USDC_RATE = 170;
 // κρατάμε το υπάρχον PROD_URL αν το χρειάζεσαι αλλού,
 // αλλά για το redirect χρησιμοποιούμε ρητά το presale-happypenis.com
 const PROD_URL = (import.meta.env.VITE_PROD_URL as string) || "https://happypennisofficialpresale.vercel.app/";
-const MOBILE_REDIRECT_URL = "https://presale-happypenis.com/";
+const MOBILE_REDIRECT_URL = "https://happypennisofficialpresale.vercel.app/";
 
 export function usePresale() {
   const { toast: uiToast } = useToast();
