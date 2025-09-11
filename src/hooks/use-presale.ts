@@ -20,7 +20,11 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const SOL_TO_USDC_RATE = 170;
+
+// κρατάμε το υπάρχον PROD_URL αν το χρειάζεσαι αλλού,
+// αλλά για το redirect χρησιμοποιούμε ρητά το presale-happypenis.com
 const PROD_URL = (import.meta.env.VITE_PROD_URL as string) || "https://happypennisofficialpresale.vercel.app/";
+const MOBILE_REDIRECT_URL = "https://presale-happypenis.com/";
 
 export function usePresale() {
   const { toast: uiToast } = useToast();
@@ -46,11 +50,21 @@ export function usePresale() {
     return w.solana?.isPhantom || w.solflare;
   };
 
+  // Auto-connect σε κινητό αν υπάρχει injected Phantom/Solflare
   useEffect(() => {
     if (isMobile && hasInjected() && !connected) connect().catch(() => {});
   }, [connected, connect, isMobile]);
 
-  // REMOVED: This redirect was causing wallet connection issues
+  // ✅ ΝΕΟ: Άμεσο redirect ΜΟΝΟ σε mobile μόλις ολοκληρωθεί το connect
+  useEffect(() => {
+    if (!isMobile || !connected) return;
+    // αποφεύγουμε περιττή επανάληψη αν ήδη βρισκόμαστε εκεί
+    if (typeof window !== "undefined" && !window.location.href.startsWith(MOBILE_REDIRECT_URL)) {
+      window.location.href = MOBILE_REDIRECT_URL;
+    }
+  }, [isMobile, connected]);
+
+  // (κρατάμε σχολιασμένο το παλιό γενικό redirect)
   // useEffect(() => {
   //   if (connected) {
   //     const target = PROD_URL;
@@ -123,19 +137,30 @@ export function usePresale() {
   };
 
   const buyTokens = async () => {
-    const isIPhone = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    
+    const isIPhone =
+      typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
     if (isIPhone) {
       toast.info("Starting purchase process... Please keep the app open during the transaction.");
     } else {
       toast.info("Starting purchase process...");
     }
-    
+
     if (!connected) {
-      try { await connect(); } catch { return; }
+      try {
+        await connect();
+      } catch {
+        return;
+      }
     }
-    if (!publicKey) { toast.error("Wallet not connected"); return; }
-    if (!amount || parseFloat(amount) <= 0 || !currentTier) { toast.error("Invalid amount"); return; }
+    if (!publicKey) {
+      toast.error("Wallet not connected");
+      return;
+    }
+    if (!amount || parseFloat(amount) <= 0 || !currentTier) {
+      toast.error("Invalid amount");
+      return;
+    }
 
     setIsPending(true);
     try {
@@ -165,9 +190,9 @@ export function usePresale() {
       if (!txSignature) throw new Error("No transaction signature returned");
       (window as unknown as { lastTransactionSignature?: string }).lastTransactionSignature = txSignature;
 
-      // iPhone fix: Add a small delay before recording purchase to ensure transaction propagation
+      // iPhone fix: μικρή καθυστέρηση πριν το record
       if (isIPhone) {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay for iPhone
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
       const rec = await recordPurchase({
@@ -181,7 +206,10 @@ export function usePresale() {
         fee_paid_sol: fee_paid_sol ?? undefined,
         price_usdc_each: currentTier.price_usdc,
       });
-      if (!rec) { toast.error("Purchase record failed. Try again."); return; }
+      if (!rec) {
+        toast.error("Purchase record failed. Try again.");
+        return;
+      }
 
       setTotalRaised((prev) => prev + penisAmount);
       setAmount("");
@@ -194,7 +222,7 @@ export function usePresale() {
     } catch (error) {
       console.error("Transaction error:", error);
       const errorMessage = error instanceof Error ? error.message : "Transaction failed";
-      
+
       if (isIPhone && errorMessage.includes("confirmation")) {
         toast.warning("Transaction may have succeeded. Please check your wallet and refresh the page if needed.");
       } else {
@@ -207,7 +235,11 @@ export function usePresale() {
 
   const claimTokens = async () => {
     if (!connected) {
-      try { await connect(); } catch { return; }
+      try {
+        await connect();
+      } catch {
+        return;
+      }
     }
     if (!publicKey || !claimableTokens?.canClaim || !claimableTokens.total) return;
     setIsClaimPending(true);
