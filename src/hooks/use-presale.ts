@@ -55,24 +55,33 @@ export function usePresale() {
     if (isMobile && hasInjected() && !connected) connect().catch(() => {});
   }, [connected, connect, isMobile]);
 
-  // ✅ ΝΕΟ: Άμεσο redirect ΜΟΝΟ σε mobile μόλις ολοκληρωθεί το connect
-  useEffect(() => {
-    if (!isMobile || !connected) return;
-    // αποφεύγουμε περιττή επανάληψη αν ήδη βρισκόμαστε εκεί
-    if (typeof window !== "undefined" && !window.location.href.startsWith(MOBILE_REDIRECT_URL)) {
-      window.location.href = MOBILE_REDIRECT_URL;
-    }
-  }, [isMobile, connected]);
+// ✅ ΝΕΟ: Mobile redirect προς το in-app browser του wallet
+useEffect(() => {
+  if (!isMobile || !connected) return;
 
-  // (κρατάμε σχολιασμένο το παλιό γενικό redirect)
-  // useEffect(() => {
-  //   if (connected) {
-  //     const target = PROD_URL;
-  //     if (typeof window !== "undefined" && window.location.href !== target) {
-  //       window.location.href = target;
-  //     }
-  //   }
-  // }, [connected]);
+  const target = "https://happypennisofficialpresale.vercel.app/";
+  const encoded = encodeURIComponent(target);
+
+  // ανιχνεύουμε το ενεργό injected wallet
+  const w = (typeof window !== "undefined" ? window : {}) as any;
+  const isPhantom = !!w?.solana?.isPhantom;
+  const isSolflare = !!w?.solflare?.isSolflare;
+
+  // Αν ήδη είμαστε στη σωστή σελίδα, μην ξανακάνεις redirect
+  if (typeof window !== "undefined" && window.location.href.startsWith(target)) return;
+
+  if (isPhantom) {
+    // Ανοίγει τον in-app browser του Phantom στη διεύθυνση του presale
+    window.location.href = `https://phantom.app/ul/browse?url=${encoded}`;
+  } else if (isSolflare) {
+    // Ανοίγει τον in-app browser του Solflare στη διεύθυνση του presale
+    window.location.href = `https://solflare.com/ul/v1/browse?url=${encoded}`;
+  } else {
+    // fallback
+    window.location.href = target;
+  }
+}, [isMobile, connected]);
+
 
   useEffect(() => {
     if (connected && publicKey) {
